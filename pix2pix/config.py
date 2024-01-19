@@ -9,14 +9,16 @@ NUM_WORKERS = 8
 IMAGE_SIZE = 256
 CHANNELS_IMG = 3
 L1_LAMBDA = 100
-NUM_EPOCHS = 2
+NUM_EPOCHS = 16
 LOAD_MODEL = False
 SAVE_MODEL = True
 CHECKPOINT_DISC = "disc.pth.tar"
 CHECKPOINT_GEN = "gen.pth.tar"
+CHANNELS_INPUT = 3
+CHANNELS_OUTPUT = 3
 
 both_transform = A.Compose(
-    [A.Resize(width=256, height=256), A.HorizontalFlip(p=0.5)], additional_targets={"image0": "image"},
+    [A.Resize(width=256, height=256), A.HorizontalFlip(p=0.5)], additional_targets={"target": "image"},
 )
 
 transform_only_input = A.Compose(
