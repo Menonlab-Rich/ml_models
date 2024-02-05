@@ -21,7 +21,7 @@ def train(loader, model, opt, loss_fn, scaler):
         if len(x.shape) < 4:
             x = x.unsqueeze(1)  # add channel dimension
 
-        with torch.cuda.amp.autocast():
+        with (torch.cuda.amp.autocast()):
             preds = model(x)
             loss = loss_fn(preds, y)
 
@@ -33,29 +33,38 @@ def train(loader, model, opt, loss_fn, scaler):
         loop.set_postfix(loss=loss.item())
 
 
-def main():
-    logger = logging.getLogger(__name__)
+def main(predict_only=False):
     model = UNet(in_channels=config.CHANNELS_INPUT,
                  out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
 
-    # if the output is a single channel, use BCEWithLogitsLoss to combine the sigmoid and the BCELoss
-    if config.CHANNELS_OUTPUT == 1:
-        loss_fn = nn.BCEWithLogitsLoss()
-    else:
-        loss_fn = nn.L1Loss()
-    
     opt = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
-    ds = Dataset(config.TRAIN_IMG_DIR, config.TARGET_DIR,transform=config.training_transform)
-    training_set, validation_set = utils.split_dataset(ds) # split the dataset into train and validation sets with 80% and 20% of the data respectively
+    ds = Dataset(config.TRAIN_IMG_DIR, config.TARGET_DIR,
+                 transforms=(config.transform_input, None, config.transform_both),
+                 channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT)
+                 )
+    # split the dataset into train and validation sets with 80% and 20% of the data respectively
+    training_set, validation_set = utils.split_dataset(ds)
     train_loader = DataLoader(training_set, shuffle=True)
     val_loader = DataLoader(validation_set, shuffle=False)
-    
+
+    # Load model if required
+    if config.LOAD_MODEL:
+        try:
+            utils.load_checkpoint(model, opt, config.CHECKPOINT)
+        except Exception as e:
+            logging.error(f"Could not load model: {e}")
+            logging.warning("Training from scratch")
+
     scaler = torch.cuda.amp.GradScaler()
+    if predict_only:
+        utils.save_examples(model, val_loader, 0, config.EXAMPLES_DIR, config.DEVICE)
+        return
     for epoch in range(config.NUM_EPOCHS):
-        train(train_loader, model, opt, loss_fn, scaler)
-        utils.save_examples(model, val_loader, epoch, config.EXAMPLES_DIR)
+        train(train_loader, model, opt, config.LOSS_FN, scaler)
+        utils.save_examples(model, val_loader, epoch, config.EXAMPLES_DIR, config.DEVICE)
         if config.SAVE_MODEL:
             utils.save_checkpoint(model, opt, filename=config.CHECKPOINT)
 
+
 if __name__ == "__main__":
-    main()
+    main(predict_only=False)
