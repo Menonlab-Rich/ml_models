@@ -39,7 +39,7 @@ def main(predict_only=False):
 
     opt = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
     ds = Dataset(config.TRAIN_IMG_DIR, config.TARGET_DIR,
-                 transforms=(config.transform_input, None, config.transform_both),
+                 transforms=(config.transform_input, config.transform_target, config.transform_both),
                  channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT)
                  )
     # split the dataset into train and validation sets with 80% and 20% of the data respectively

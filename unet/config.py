@@ -16,7 +16,7 @@ CHANNELS_OUTPUT = 3 # RGB
 LOSS_FN = lambda x, y: nn.L1Loss()(x, y) * 100 # L1 loss with a weight of 100
 NUM_EPOCHS = 6
 LOAD_MODEL = True # set to True if you want to load a pre-trained model
-SAVE_MODEL = True # set to True to save the model
+SAVE_MODEL = False # set to True to save the model
 CHECKPOINT = "unet.pth.tar" # Saved modle filename
 TRAIN_IMG_DIR="/home/rich/Documents/school/menon/ml_models/unet/data/landscapes/gray/*.jpg" # input images path
 TARGET_DIR="/home/rich/Documents/school/menon/ml_models/unet/data/landscapes/color/*.jpg" # target images path 
@@ -45,11 +45,18 @@ transform_both = A.Compose(
     additional_targets={'target': 'image'} # required if target is an image. Could also be set to mask, or other supported key
 )
 
+# You can add additional transformations to the input images if you want
+# Just make sure not to add ToTensorV2() to the input transformations
+# This is because ToTensorV2() should be the last transformation and it should be applied to both the input and target images
 transform_input = A.Compose(
     [
         # add noise to the input image
         A.GaussNoise(p=0.5),
     ]
 )
+# You can add transformations to the target images if you want by following the same pattern. 
+# Just make sure not to add ToTensorV2() to the input transformations
+# This is because ToTensorV2() should be the last transformation and it should be applied to both the input and target images
+transform_target = None 
 
 
