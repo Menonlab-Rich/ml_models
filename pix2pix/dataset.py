@@ -47,15 +47,6 @@ class Dataset(Dataset):
         transform: [torchvision.transforms]
             Transformations to be applied to the images. In the order of (both, input, target)
             Default: (None, None, None)
-        make_even: bool
-            Adjust the dimensions of the images to make them even
-            Default: False
-        make_square: bool
-            Adjust the dimensions of the images to make them square
-            Default: False
-        pad_or_crop: str
-            If "pad", pad the images to make them even or square. If "crop", crop the images to make them even or square.
-            Default: "pad"
         target_input_combined: bool
             If True, the input and target images are assumed to be combined into a single image. 
             The input image is placed on the left and the target image is placed on the right.
@@ -63,10 +54,6 @@ class Dataset(Dataset):
         logger: logging.Logger
             Logger to be used for logging
             Default: logging.getLogger(__name__)
-        match_shape: bool
-            If True, the shapes of the input and target images are matched before applying any other transformations.
-            They are matched by the method specified by the pad_or_crop parameter.
-            Default: False
         '''
         # Store the paths to the images
         self.images, self.targets = self._load_images(
@@ -85,9 +72,6 @@ class Dataset(Dataset):
         Parse the arguments passed to the constructor
         '''
         defaults = {
-            "make_even": False,
-            "make_square": False,
-            "pad_or_crop": "pad",
             "target_input_combined": False,
             "logger": logging.getLogger(__name__),
             "match_shape": False,
@@ -129,19 +113,6 @@ class Dataset(Dataset):
         img = (np.array(img).astype(np.uint8) / 255).astype(np.float32)
         target_img = (np.array(target_img).astype(
             np.uint8) / 255).astype(np.float32)
-
-        if self.match_shape:
-            img, target_img = self._match_shape(img, target_img)
-        
-        # If make_even is True, adjust the dimensions of the images to make them even
-        if self.make_even:
-            img = self._make_even(img)
-            target_img = self._make_even(target_img)
-
-        # If make_square is True, adjust the dimensions of the images to make them square
-        if self.make_square:
-            img = self._make_square(img)
-            target_img = self._make_square(target_img)
 
         # If transform is specified, apply the transformations to the images
         if self.transform:
