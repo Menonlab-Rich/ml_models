@@ -18,7 +18,7 @@ CHANNELS_INPUT = 3
 CHANNELS_OUTPUT = 3
 
 both_transform = A.Compose(
-    [A.Resize(width=256, height=256), A.HorizontalFlip(p=0.5)], additional_targets={"target": "image"},
+    [A.Resize(width=256, height=256)], additional_targets={"target": "image"},
 )
 
 transform_only_input = A.Compose(

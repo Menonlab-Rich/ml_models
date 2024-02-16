@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from enum import Enum
+import torch.nn.functional as F
 
 
 class Direction(Enum):
@@ -129,12 +130,19 @@ class Generator(nn.Module):
         d7 = self.down_6(d6)
         bottleneck = self.bottleneck(d7)
         u1 = self.up_1(bottleneck)
+        u1 = F.interpolate(u1, size=d7.size()[2:], mode='nearest')
         u2 = self.up_2(torch.cat([u1, d7], dim=1))
+        u2 = F.interpolate(u2, size=d6.size()[2:], mode='nearest')
         u3 = self.up_3(torch.cat([u2, d6], dim=1))
+        u3 = F.interpolate(u3, size=d5.size()[2:], mode='nearest')
         u4 = self.up_4(torch.cat([u3, d5], dim=1))
+        u4 = F.interpolate(u4, size=d4.size()[2:], mode='nearest')
         u5 = self.up_5(torch.cat([u4, d4], dim=1))
+        u5 = F.interpolate(u5, size=d3.size()[2:], mode='nearest')
         u6 = self.up_6(torch.cat([u5, d3], dim=1))
+        u6 = F.interpolate(u6, size=d2.size()[2:], mode='nearest')
         u7 = self.up_7(torch.cat([u6, d2], dim=1))
+        u7 = F.interpolate(u7, size=d1.size()[2:], mode='nearest')
         return self.final_up(torch.cat([u7, d1], dim=1))            
 def test():
     x = torch.randn((1, 3, 256, 256))

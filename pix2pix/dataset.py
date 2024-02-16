@@ -91,6 +91,7 @@ class Dataset(Dataset):
             "target_input_combined": False,
             "logger": logging.getLogger(__name__),
             "match_shape": False,
+            "axis": "y" # Default axis for splitting the image
         }
         # Store the arguments as attributes of the defaults object
         for key, value in kwargs.items():
@@ -113,12 +114,14 @@ class Dataset(Dataset):
     def __getitem__(self, idx):
        # Open the image and convert it to RGB
         img = Image.open(self.images[idx]).convert("RGB")
+        img = (np.array(img).astype(np.uint8))
 
         # If target_input_combined is True, split the image into two halves
         if self.target_input_combined:
-            img_width = img.size[0]
-            target_img = img[:, img_width//2:, :]
-            img = img[:, :img_width//2, :]
+            if self.axis == "y":
+                img, target_img = self._split_image_y(img)
+            else:
+                img, target_img = self._split_image_x(img)
         else:
             target_img = Image.open(self.targets[idx]).convert("RGB")
 
@@ -169,6 +172,24 @@ class Dataset(Dataset):
 
         # Return the images as tensors
         return tensor(img), tensor(target_img)
+
+    def _split_image_y(self, img: np.ndarray):
+        '''
+        Split the image into two halves along the y-axis
+        '''
+        img_width = img.shape[1]
+        target_img = np.copy(img[:, img_width//2:, :])
+        img = np.copy(img[:, :img_width//2, :])
+        return img, target_img
+    
+    def _split_image_x(self, img: np.ndarray):
+        '''
+        Split the image into two halves along the x-axis
+        '''
+        img_height = img.shape[0]
+        img = np.copy(img[img_height//2:, :, :])
+        target_img = np.copy(img[:img_height//2, :, :])
+        return img, target_img
 
     def _match_shape(self, img: np.ndarray, target_img: np.ndarray):
         if self.pad_or_crop not in ["pad", "crop"]:
