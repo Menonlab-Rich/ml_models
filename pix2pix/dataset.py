@@ -109,10 +109,9 @@ class Dataset(Dataset):
         else:
             target_img = Image.open(self.targets[idx]).convert("RGB")
 
-        # Convert the images to numpy arrays and normalize them
-        img = (np.array(img).astype(np.uint8) / 255).astype(np.float32)
-        target_img = (np.array(target_img).astype(
-            np.uint8) / 255).astype(np.float32)
+        # normalize the images
+        img = (img / 255).astype(np.float32)
+        target_img = (target_img / 255).astype(np.float32)
 
         # If transform is specified, apply the transformations to the images
         if self.transform:
@@ -155,12 +154,12 @@ class Dataset(Dataset):
     
     def _split_image_x(self, img: np.ndarray):
         '''
-        Split the image into two halves along the x-axis
+        Split the image into top and bottom halves along the x-axis.
         '''
         img_height = img.shape[0]
-        img = np.copy(img[img_height//2:, :, :])
-        target_img = np.copy(img[:img_height//2, :, :])
-        return img, target_img
+        top_img = np.copy(img[:img_height//2, :, :])  # Get the top half
+        bottom_img = np.copy(img[img_height//2:, :, :])  # Get the bottom half
+        return bottom_img, top_img
 
     def _match_shape(self, img: np.ndarray, target_img: np.ndarray):
         if self.pad_or_crop not in ["pad", "crop"]:
