@@ -18,7 +18,9 @@ CHANNELS_INPUT = 3
 CHANNELS_OUTPUT = 3
 
 both_transform = A.Compose(
-    [A.Resize(width=256, height=256)], additional_targets={"target": "image"},
+    [
+        A.ToGray(p=1), # convert to grayscale    
+    ], additional_targets={"target": "image"},
 )
 
 transform_only_input = A.Compose(

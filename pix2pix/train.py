@@ -67,7 +67,7 @@ def main():
         image_globbing_pattern=r"D:\CZI_scope\code\data\videos\training_data\stitched\*.jpg",
         target_globbing_pattern=r"D:\CZI_scope\code\data\videos\training_data\stitched\*.jpg",
         make_even=False, make_square=False, match_shape=False, target_input_combined=True, axis="x",
-        transform=(None, config.transform_only_input, config.
+        transform=(config.both_transform, config.transform_only_input, config.
                    transform_only_target))
     # split the dataset into train and validation sets
     train_len = int(len(dataset)*0.8)  # Use 80% of the dataset for training
