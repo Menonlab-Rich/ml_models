@@ -38,7 +38,7 @@ class ToGrayscale1Channel(ImageOnlyTransform):
 
 both_transform = A.Compose(
     [
-        A.ToGrayscale1Channel(p=1), # convert to grayscale with a single channel
+        ToGrayscale1Channel(p=1), # convert to grayscale with a single channel
         A.Normalize(mean=[MEAN], std=[STDEV], max_pixel_value=255.)   
     ], additional_targets={"target": "image"},
 )

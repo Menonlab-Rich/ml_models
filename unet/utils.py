@@ -1,8 +1,63 @@
-from typing import Any
 import config
 import torch
 import logging
 import matplotlib.pyplot as plt
+from PIL import Image
+import numpy as np
+
+def generate_model_prediction(model, checkpoint_path, image_path, output_path, resize=1.):
+    '''
+    Save the predictions of a model on an image to a file
+    
+    Parameters:
+    ----------
+    model: torch.nn.Module
+        Model to use for prediction
+    checkpoint_path: str
+        Path to the model checkpoint file
+    image_path: str
+        Path to the image file
+    output_path: str
+        Path to save the predictions to
+    resize: float | tuple, Default: 1 (no resize)
+        The size to resize the image to before predicting. 
+        This should match the size the model was trained on
+            If a float, the image is resized by the factor
+            If a tuple, the image is resized to the specified size
+    '''
+
+    # Load the model from the specified path
+    load_checkpoint(model, None, checkpoint_path) # optimizer is not needed for prediction
+    # Load and preprocess the image
+    image = Image.open(image_path)
+    # check if resize is a float
+    if isinstance(resize, float):
+        image = image.resize((int(image.width * resize), int(image.height * resize)))
+    elif isinstance(resize, tuple):
+        image = image.resize(resize)
+    else:
+        try:
+            resize = float(resize)
+            image = image.resize((int(image.width * resize), int(image.height * resize)))
+        except:
+            raise ValueError("resize must be a float or a tuple of two integers")
+    
+    image_array = np.expand_dims(np.array(image) / 255.0, axis=0)  # Normalize and add batch dimension
+    
+    # Predict
+    model.eval()
+    with torch.no_grad():
+        y_fake = model(torch.tensor(image_array, dtype=torch.float32))
+        # Normalize y_fake from [0, 255] to [0, 1] for matplotlib
+        y_fake = y_fake / 255.0
+        suffix = output_path.split('.')[-1]
+        # Save the predictions to a file
+        if suffix == 'npy':
+            np.save(output_path, y_fake.numpy())
+        elif suffix in ['.jpg', '.jpeg', '.png']:
+            # Convert to uint8 and save as an image
+            Image.fromarray(y_fake.numpy()).save(output_path)
+
 
 
 def save_examples(model, val_loader, epoch, folder, device):
@@ -205,3 +260,13 @@ class LoggerOrDefault():
             cls._logger = logger
 
         return cls._logger
+
+if __name__ == "__main__":
+    from model import UNet
+    # Example usage
+    model = UNet(in_channels=config.CHANNELS_INPUT,
+                out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
+    image_path = '/home/rich/Documents/school/menon/ml_models/unet/data/landscapes/gray/7128.jpg'
+    output_path = './prediction.jpg'
+    checkpoint_path = '/home/rich/Documents/school/menon/ml_models/unet/unet.pth.tar'
+    generate_model_prediction(model, checkpoint_path,  image_path, output_path)

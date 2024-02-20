@@ -16,8 +16,9 @@ def denormalize(img, mean, stdev):
 
 def save_examples(gen, val_loader, epoch, folder, mean, stdev):
     # Mean and Stdev should be announced where your normalization values are consistent
-    fname, x, y = next(iter(val_loader))
-    x, y = x.to('cuda'), y.to('cuda')  # Assuming you're using CUDA
+    loader_iter = iter(val_loader)
+    fnames, x, y = next(loader_iter)
+    x, y = x.to(config.DEVICE), y.to(config.DEVICE)
     gen.eval()
     with torch.no_grad():
         y_fake = gen(x)
@@ -30,12 +31,26 @@ def save_examples(gen, val_loader, epoch, folder, mean, stdev):
 
         # iterating through batch to save every image in the list
         for idx in range(x.shape[0]):
-            # Given: Batch, 1 Channel, Width, and Height
-            # Depending on your model's use, you'll focus on a small subset
+            file_name = fnames[idx].split('/')[-1].split('.')[0] # Extracting the filename
             sample_fake = np.squeeze(y_fake[idx])  
             image_fake = denormalize(sample_fake, mean, stdev)
+            sample_x = np.squeeze(x[idx])
+            image_x = denormalize(sample_x, mean, stdev)
+            sample_y = np.squeeze(y[idx])
+            image_y = denormalize(sample_y, mean, stdev)
             
-            plt.imsave(os.path.join(folder, f'e{epoch}_predicted_{fname[idx]}.png'), image_fake, cmap='inferno')
+            # Plot the images with a color map and color bar
+            fig, ax = plt.subplots(1, 3, figsize=(12, 4))
+            ax[0].imshow(image_x, cmap='inferno')
+            ax[0].set_title('Input')
+            ax[0].axis('off')
+            ax[1].imshow(image_y, cmap='inferno')
+            ax[1].set_title('Target')
+            ax[1].axis('off')
+            ax[2].imshow(image_fake, cmap='inferno')
+            ax[2].set_title('Generated')
+            ax[2].axis('off')
+            plt.savefig(path.join(folder, f"img_e{epoch}_b{idx}_{file_name}.jpg"))
             
 
         
@@ -63,6 +78,3 @@ def load_checkpoint(model, optimizer, filename, lr):
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
         
-def denormalize(img, stdev, mean):
-    img = np.array(img).astype(np.float32)
-    return img * stdev + mean
