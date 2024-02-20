@@ -4,8 +4,16 @@ Load and evaluate the model
 import config
 import utils
 from torch.utils.data import DataLoader
+import torchvision.transforms.functional as F
 import torch
 from matplotlib import pyplot as plt
+import numpy as np
+
+def tensor_to_image(img: torch.tensor) -> np.ndarray:
+    img = torch.squeeze(img)
+    img = F.to_pil_image(img)
+    img = np.array(img)
+    return img
 
 def normalize_images(*images):
     """Normalize image data to [0, 1] range."""
@@ -39,26 +47,29 @@ def eval_dataset(generator, generator_optimizer, discriminator,
         x = x.to(config.DEVICE)
         y = y.to(config.DEVICE)
         with torch.no_grad():
-            y_fake = generator(x)
-            
-            y_fake, x, y = normalize_images(y_fake, x, y)
+            x = torch.tensor(x)
+            y = torch.tensor(y)
+            y_fake = tensor_to_image(generator(x))
+            x = tensor_to_image(x)
+            y = tensor_to_image(y)
             
             
             # First row: Input images
-            axes[0, i].imshow(x[0].permute(1, 2, 0).cpu().numpy())
+            axes[0, i].imshow(x)
             axes[0, i].set_title("Input" if i == 0 else "")
             axes[0, i].axis("off")
             
             # Second row: Generated images
-            axes[1, i].imshow(y_fake[0].permute(1, 2, 0).cpu().numpy())
+            axes[1, i].imshow(y_fake)
             axes[1, i].set_title("Generated" if i == 0 else "")
             axes[1, i].axis("off")
             
             # Third row: Target images
-            axes[2, i].imshow(y[0].permute(1, 2, 0).cpu().numpy())
+            axes[2, i].imshow(y)
             axes[2, i].set_title("Target" if i == 0 else "")
             axes[2, i].axis("off")
 
+    print(f'Saving to {savepath}')
     plt.savefig(savepath)
     plt.close(figure)  # Close the figure to free memory
 
@@ -81,17 +92,11 @@ if __name__ == "__main__":
     BCE = nn.BCEWithLogitsLoss()  # Binary Cross Entropy
     L1_LOSS = nn.L1Loss()  # L1 loss
 
-    dataset = Dataset(
-        image_globbing_pattern=r"D:\CZI_scope\code\data\videos\training_data\stitched\*.jpg",
-        target_globbing_pattern=r"D:\CZI_scope\code\data\videos\training_data\stitched\*.jpg",
-        make_even=False, make_square=False, match_shape=False,
-        target_input_combined=True, axis="x",
-        transform=(None, config.transform_only_input, config.
-                   transform_only_target))
+    dataset = torch.load('/uufs/chpc.utah.edu/common/home/u0977428/ml_models/pix2pix/val.pt')
     # split the dataset into train and validation sets
     train_len = int(len(dataset)*0.8)  # Use 80% of the dataset for training
     val_len = len(dataset) - train_len  # Use the remaining 20% for validation
     train_set, val_set = torch.utils.data.random_split(
         dataset, [train_len, val_len])
     
-    eval_dataset(gen, opt_gen, disc, opt_disc, val_set, r"D:\CZI_scope\code\ml_models\pix2pix\eval")
+    eval_dataset(gen, opt_gen, disc, opt_disc, val_set, r"/uufs/chpc.utah.edu/common/home/u0977428/ml_models/pix2pix/eval/eval.jpg")

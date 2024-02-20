@@ -14,7 +14,7 @@ def train(
         disc, gen, train_loader, opt_disc, opt_gen, BCE, L1_LOSS, g_scaler,
         d_scaler):
     loop = tqdm(train_loader, leave=True)
-    for idx, (x, y) in enumerate(loop):
+    for idx, (_, x, y) in enumerate(loop):
         x, y = x.to(config.DEVICE), y.to(config.DEVICE)
 
         # Train Discriminator
@@ -46,8 +46,8 @@ def train(
 
 
 def main():
-    disc = Discriminator().to(config.DEVICE)
-    gen = Generator().to(config.DEVICE)
+    disc = Discriminator(in_channels=config.CHANNELS_INPUT).to(config.DEVICE)
+    gen = Generator(in_channels=config.CHANNELS_INPUT).to(config.DEVICE)
     opt_disc = optim.Adam(
         disc.parameters(),
         lr=config.LEARNING_RATE, betas=(0.5, 0.999))
@@ -64,8 +64,8 @@ def main():
                         opt_disc, config.LEARNING_RATE)
 
     dataset = Dataset(
-        image_globbing_pattern=r"D:\CZI_scope\code\data\videos\training_data\stitched\*.jpg",
-        target_globbing_pattern=r"D:\CZI_scope\code\data\videos\training_data\stitched\*.jpg",
+        image_globbing_pattern=r"czi_training_data/*.jpg",
+        target_globbing_pattern=r"czi_training_data/*.jpg",
         make_even=False, make_square=False, match_shape=False, target_input_combined=True, axis="x",
         transform=(config.both_transform, config.transform_only_input, config.
                    transform_only_target))
@@ -74,6 +74,7 @@ def main():
     val_len = len(dataset) - train_len  # Use the remaining 20% for validation
     train_set, val_set = torch.utils.data.random_split(
         dataset, [train_len, val_len])
+    torch.save(val_set, 'val.pt')
     g_scaler = torch.cuda.amp.GradScaler()
     d_scaler = torch.cuda.amp.GradScaler()
 
@@ -89,9 +90,12 @@ def main():
             save_checkpoint(gen, opt_gen, filename=config.CHECKPOINT_GEN)
             save_checkpoint(disc, opt_disc, filename=config.CHECKPOINT_DISC)
 
-        save_examples(
-            gen, val_loader, epoch,
-            folder=r"D:\CZI_scope\code\ml_models\pix2pix\eval")
+        try:
+            save_examples(
+                gen, val_loader, epoch,
+                folder=r"eval")
+        except:
+            pass # ignore errors with saving examples
 
 
 def set_log_level(default_level: str):
