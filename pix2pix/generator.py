@@ -96,6 +96,14 @@ class Generator(nn.Module):
             nn.ReLU(),
         )
         
+        self.bottleneck_unpadded = nn.Sequential(
+            nn.Conv2d(
+                features * 8, features * 8, kernel_size=1,
+                stride=2, padding=0
+            ),
+            nn.ReLU(),
+        )
+        
         # Upsample until we get back to the original size.
         for i in range(7):
             in_mult = min(2 ** (7 - i), 8) * (2 if i > 0 else 1) # *2 because we concatenate the output of the previous layer. Except for the first layer.
@@ -128,7 +136,11 @@ class Generator(nn.Module):
         d5 = self.down_4(d4)
         d6 = self.down_5(d5)
         d7 = self.down_6(d6)
-        bottleneck = self.bottleneck(d7)
+        height, width = d7.size()[2], d7.size()[3]
+        if height < 2 or width < 2:
+            bottleneck = self.bottleneck_unpadded(d7)
+        else:
+            bottleneck = self.bottleneck(d7)
         u1 = self.up_1(bottleneck)
         u1 = F.interpolate(u1, size=d7.size()[2:], mode='nearest')
         u2 = self.up_2(torch.cat([u1, d7], dim=1))

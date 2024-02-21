@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from os import path
-
+import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -11,46 +11,53 @@ import torch
 
 # Correct denormalization with a mean and stdev
 # Values for `mean` and `stdev` should be your original model's pre-processing values
-def denormalize(img, mean, stdev):
-    return img * stdev + mean
+def denormalize(img, mean=0, stdev=0):
+    if mean == 0 or stdev == 0:
+        return (img + 1)/2 # denormalize the range to [0, 1] because of tanh
+    return (img * stdev) + mean # denormalize using the mean and stdev
 
 def save_examples(gen, val_loader, epoch, folder, mean, stdev):
-    # Mean and Stdev should be announced where your normalization values are consistent
     loader_iter = iter(val_loader)
     fnames, x, y = next(loader_iter)
     x, y = x.to(config.DEVICE), y.to(config.DEVICE)
     gen.eval()
     with torch.no_grad():
         y_fake = gen(x)
-        y_fake = torch.clamp(y_fake, 0, 1)  # Ensuring the final value is in the range of [0,1]
-        
-        # The tensors: Convert to CPU and detach from graph
+        logging.error(y_fake.shape)
+        logging.error(f'max: {y_fake.max()}, min: {y_fake.min()}')
         y_fake = y_fake.cpu().detach().numpy()
         x = x.cpu().detach().numpy()
         y = y.cpu().detach().numpy()
+        logging.error(f'after np, max: {y_fake.max()}, min: {y_fake.min()}')
 
-        # iterating through batch to save every image in the list
         for idx in range(x.shape[0]):
-            file_name = fnames[idx].split('/')[-1].split('.')[0] # Extracting the filename
-            sample_fake = np.squeeze(y_fake[idx])  
+            file_name = fnames[idx].split('/')[-1].split('.')[0]
+            sample_fake = np.squeeze(y_fake[idx], 0)
+            sample_fake = np.transpose(sample_fake, (1, 2, 0))
             image_fake = denormalize(sample_fake, mean, stdev)
-            sample_x = np.squeeze(x[idx])
+            
+            sample_x = np.squeeze(x[idx], 0)
+            sample_x = np.transpose(sample_x, (1, 2, 0))
             image_x = denormalize(sample_x, mean, stdev)
-            sample_y = np.squeeze(y[idx])
+            
+            sample_y = np.squeeze(y[idx], 0)
+            sample_y = np.transpose(sample_y, (1, 2, 0))
             image_y = denormalize(sample_y, mean, stdev)
             
-            # Plot the images with a color map and color bar
             fig, ax = plt.subplots(1, 3, figsize=(12, 4))
-            ax[0].imshow(image_x, cmap='inferno')
+            ax[0].imshow(image_x, cmap='inferno', vmin=0, vmax=1)
             ax[0].set_title('Input')
             ax[0].axis('off')
-            ax[1].imshow(image_y, cmap='inferno')
+            ax[1].imshow(image_y, cmap='inferno', vmin=0, vmax=1)
             ax[1].set_title('Target')
             ax[1].axis('off')
-            ax[2].imshow(image_fake, cmap='inferno')
+            cax = ax[2].imshow(image_fake, cmap='inferno', vmin=0, vmax=1)
             ax[2].set_title('Generated')
             ax[2].axis('off')
-            plt.savefig(path.join(folder, f"img_e{epoch}_b{idx}_{file_name}.jpg"))
+            fig.colorbar(cax)
+            plt.savefig(os.path.join(folder, f"img_e{epoch}_b{idx}_{file_name}.jpg"))
+
+    gen.train()
             
 
         

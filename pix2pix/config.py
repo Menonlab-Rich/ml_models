@@ -16,8 +16,8 @@ LOAD_MODEL = False
 SAVE_MODEL = True
 CHECKPOINT_DISC = "disc.pth.tar"
 CHECKPOINT_GEN = "gen.pth.tar"
-CHANNELS_INPUT = 3
-CHANNELS_OUTPUT = 3
+CHANNELS_INPUT = 1
+CHANNELS_OUTPUT = 1
 STDEV = 0.5
 MEAN = 0.5
 
@@ -35,22 +35,27 @@ class ToGrayscale1Channel(ImageOnlyTransform):
         # gray_image = gray_image[:, :, None]
         return gray_image
 
+def threshold(image, thresh=47, **_):
+    image[image <= thresh] = 0
+    return image
 
 both_transform = A.Compose(
     [
         ToGrayscale1Channel(p=1), # convert to grayscale with a single channel
-        A.Normalize(mean=[MEAN], std=[STDEV], max_pixel_value=255.)   
     ], additional_targets={"target": "image"},
 )
 
 transform_only_input = A.Compose(
     [
+        A.Lambda(image=threshold), # remove background
+        A.Normalize(mean=[MEAN], std=[STDEV], max_pixel_value=255.),
         ToTensorV2(),
     ]
 )
 
 transform_only_target = A.Compose(
     [
+        A.Normalize(mean=[MEAN], std=[STDEV], max_pixel_value=255.),
         ToTensorV2(),
     ]
 )

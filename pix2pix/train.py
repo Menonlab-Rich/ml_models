@@ -8,6 +8,7 @@ from discriminator import Discriminator
 from generator import Generator
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+import logging
 
 
 def train(
@@ -93,8 +94,9 @@ def main():
         try:
             save_examples(
                 gen, val_loader, epoch,
-                folder=r"eval")
-        except:
+                folder=r"eval", mean=config.MEAN, stdev=config.STDEV)
+        except Exception as e:
+            logging.error(e)
             pass # ignore errors with saving examples
 
 
