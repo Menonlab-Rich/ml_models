@@ -24,16 +24,6 @@ MEAN = 0.5
 from albumentations.core.transforms_interface import ImageOnlyTransform
 
 
-class ToGrayscale1Channel(ImageOnlyTransform):
-    def __init__(self, always_apply=False, p=1.0):
-        super(ToGrayscale1Channel, self).__init__(always_apply, p)
-
-    def apply(self, image, **params):
-        # Convert the image to grayscale with OpenCV
-        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        # Optionally, add a new axis to make the shape (H, W, 1) instead of (H, W)
-        # gray_image = gray_image[:, :, None]
-        return gray_image
 
 def threshold(image, thresh=47, **_):
     image[image <= thresh] = 0
@@ -41,21 +31,19 @@ def threshold(image, thresh=47, **_):
 
 both_transform = A.Compose(
     [
-        ToGrayscale1Channel(p=1), # convert to grayscale with a single channel
     ], additional_targets={"target": "image"},
 )
 
 transform_only_input = A.Compose(
     [
-        A.Lambda(image=threshold), # remove background
-        A.Normalize(mean=[MEAN], std=[STDEV], max_pixel_value=255.),
+        A.Normalize(mean=[MEAN], std=[STDEV], max_pixel_value=1.),
         ToTensorV2(),
     ]
 )
 
 transform_only_target = A.Compose(
     [
-        A.Normalize(mean=[MEAN], std=[STDEV], max_pixel_value=255.),
+        A.Normalize(mean=[MEAN], std=[STDEV], max_pixel_value=1.),
         ToTensorV2(),
     ]
 )

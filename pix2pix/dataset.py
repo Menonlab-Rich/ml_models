@@ -1,4 +1,4 @@
-from PIL import Image
+from skimage import io
 import numpy as np
 from torch.utils.data import Dataset
 import config
@@ -52,7 +52,8 @@ class Dataset(Dataset):
         defaults = {
             "target_input_combined": False,
             "logger": logging.getLogger(__name__),
-            "axis": "y" # Default axis for splitting the image
+            "axis": "y", # Default axis for splitting the image
+            "n_channels": 3 # Default number of channels in the images
         }
         # Store the arguments as attributes of the defaults object
         for key, value in kwargs.items():
@@ -74,8 +75,10 @@ class Dataset(Dataset):
 
     def __getitem__(self, idx):
        # Open the image and convert it to RGB
-        img = Image.open(self.images[idx]).convert("RGB")
-        img = (np.array(img).astype(np.uint8))
+        img = io.imread(self.images[idx], as_gray=self.n_channels == 1)
+        # add a color channel if the image is grayscale
+        if len(img.shape) == 2:
+            img = np.expand_dims(img, axis=2)
 
         # If target_input_combined is True, split the image into two halves
         if self.target_input_combined:
@@ -84,10 +87,7 @@ class Dataset(Dataset):
             else:
                 img, target_img = self._split_image_x(img)
         else:
-            target_img = Image.open(self.targets[idx]).convert("RGB")
-            
-        img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-        target_img = cv2.cvtColor(np.array(target_img), cv2.COLOR_RGB2BGR)
+            target_img = io.imread(self.targets[idx], as_gray=self.n_channels == 1)
 
         # If transform is specified, apply the transformations to the images
         if self.transform:

@@ -85,3 +85,6 @@ def load_checkpoint(model, optimizer, filename, lr):
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
         
+
+def relative_path_to_abs(*rel_path):
+    return path.join(path.dirname(path.abspath(__file__)), *rel_path)
