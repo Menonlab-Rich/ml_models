@@ -1,3 +1,3 @@
-[submodule "phillipi_pix2pix"]
-	path = phillipi_pix2pix
-	url = git@github.com:phillipi/pix2pix.git
+[submodule "pytorch-CycleGAN-and-pix2pix"]
+	path = pytorch-CycleGAN-and-pix2pix
+	url = git@github.com:junyanz/pytorch-CycleGAN-and-pix2pix.git
