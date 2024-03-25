@@ -108,10 +108,6 @@ def save_examples(model, val_loader, epoch, folder, device):
     for i in range(6):
         row = i // 3
         col = i % 3
-        # Display input (grayscale) image
-        im = x[i].cpu().squeeze().numpy()
-        if config.CHANNELS_OUTPUT == 3:
-            im = im.transpose(1, 2, 0) # [C, H, W] to [H, W, C]
             
         axs[row, col].imshow(x[i], cmap=config.CMAP, interpolation='nearest')
         axs[row, col].set_title(f"Input {i+1}")
