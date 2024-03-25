@@ -101,7 +101,7 @@ def save_examples(model, val_loader, epoch, folder, device):
     with torch.no_grad():
         y_fake = model(x)
         # Prepare tensors for plotting
-        y_fake = prepare_tensors_for_plotting(y_fake)
+        y_fake = prepare_tensors_for_plotting(*y_fake)
         x = prepare_tensors_for_plotting(*x)
     
     fig, axs = plt.subplots(2, 3, figsize=(15, 10))
@@ -115,7 +115,7 @@ def save_examples(model, val_loader, epoch, folder, device):
         
         # Display predicted (RGB) image
         # Ensure y_fake is permuted from [C, H, W] to [H, W, C] for correct display
-        axs[(row+1)%2, col].imshow(y_fake[i].cpu().detach().numpy().transpose(1, 2, 0))
+        axs[(row+1)%2, col].imshow(y_fake[i])
         axs[(row+1)%2, col].set_title(f"Prediction {i+1}")
         axs[(row+1)%2, col].axis('off')
 
