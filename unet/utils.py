@@ -58,7 +58,29 @@ def generate_model_prediction(model, checkpoint_path, image_path, output_path, r
             # Convert to uint8 and save as an image
             Image.fromarray(y_fake.numpy()).save(output_path)
 
+def prepare_tensors_for_plotting(*img_tensors):
+    # Convert to float
+    np_imgs = []
+    for img_tensor in img_tensors:
+        img_tensor = img_tensor.to(dtype=torch.float32)
+        
+        # Calculate min and max values
+        min_val = torch.min(img_tensor)
+        max_val = torch.max(img_tensor)
+        
+        # Scale tensor to range 0 to 1
+        scaled_tensor = (img_tensor - min_val) / (max_val - min_val)
+        
+        # Clamp values to ensure they are between 0 and 1
+        scaled_tensor = torch.clamp(scaled_tensor, 0, 1)
+        
+        np_img = scaled_tensor.cpu().squeeze().numpy()
+        if np_img.shape[0] == 3:
+            np_img = np_img.transpose(1, 2, 0)
 
+        np_imgs.append(np_img)
+    
+    return np_imgs if len(np_imgs) > 1 else np_imgs[0]
 
 def save_examples(model, val_loader, epoch, folder, device):
     if not hasattr(save_examples, "fixed_samples"):
@@ -78,16 +100,20 @@ def save_examples(model, val_loader, epoch, folder, device):
     model.eval()
     with torch.no_grad():
         y_fake = model(x)
-        # Normalize y_fake from [0, 255] to [0, 1] for matplotlib
-        y_fake = y_fake / 255.0
+        # Prepare tensors for plotting
+        y_fake = prepare_tensors_for_plotting(y_fake)
+        x = prepare_tensors_for_plotting(*x)
     
-    # Assuming x is already normalized to [0, 1]
     fig, axs = plt.subplots(2, 3, figsize=(15, 10))
     for i in range(6):
         row = i // 3
         col = i % 3
         # Display input (grayscale) image
-        axs[row, col].imshow(x[i].cpu().squeeze().numpy(), cmap='gray', interpolation='nearest')
+        im = x[i].cpu().squeeze().numpy()
+        if config.CHANNELS_OUTPUT == 3:
+            im = im.transpose(1, 2, 0) # [C, H, W] to [H, W, C]
+            
+        axs[row, col].imshow(x[i], cmap=config.CMAP, interpolation='nearest')
         axs[row, col].set_title(f"Input {i+1}")
         axs[row, col].axis('off')
         
