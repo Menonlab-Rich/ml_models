@@ -24,6 +24,7 @@ TARGET_IMG_PATTERN="/scratch/general/nfs1/u0977428/Training/jpg/OUT*.jpg" # Glob
 CMAP_IN = 'gray' if CHANNELS_INPUT == 1 else None # colormap for input images
 CMAP_OUT = 'inferno' if CHANNELS_OUTPUT == 1 else None # colormap for output images
 PLOTTING_INTERPOLATION = lambda ch: 'nearest' if ch == 1 else 'bilinear' # interpolation for plotting images
+CBAR = True # Whether to show the colorbar
 CBAR_MIN = lambda x: x.min() # Function to calculate the colorbar minimum. Can be set to None for automatic calculation, or a number for manual setting
 CBAR_MAX = lambda x: x.max() # Function to calculate the colorbar maximum Can be set to None for automatic calculation, or a number for manual setting
 
