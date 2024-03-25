@@ -110,7 +110,7 @@ def get_color_range(img, min_fn, max_fn):
         If None, the maximum value of the image is used
         If a number, that number is used as the maximum value
     '''
-
+    img = np.asarray(img) # Convert to numpy array if not already
     if min_fn is None:
         vmin = img.min()
     elif callable(min_fn):
