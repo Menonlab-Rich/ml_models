@@ -137,7 +137,7 @@ def save_annotated_examples(model, valid_loader, epoch):
     
     with torch.no_grad():  # No need to track gradients
         for i, (images, targets) in enumerate(valid_loader):
-            images = list(img.to(model.device) for img in images)
+            images = list(img.to(DEVICE) for img in images)  # Move images to the correct device
             output = model(images)  # Get predictions
             
             for j, image in enumerate(images):
@@ -152,7 +152,7 @@ def save_annotated_examples(model, valid_loader, epoch):
                 axs[0].imshow(np_image)
                 axs[0].set_title("Predictions")
                 for box, label in zip(output[j]['boxes'], output[j]['labels']):
-                    x1, y1, x2, y2 = box
+                    x1, y1, x2, y2 = box.cpu().numpy()
                     axs[0].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, color='red'))
                     axs[0].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="red")
                 
@@ -160,7 +160,7 @@ def save_annotated_examples(model, valid_loader, epoch):
                 axs[1].imshow(np_image)
                 axs[1].set_title("Ground Truth")
                 for box, label in zip(targets[j]['boxes'], targets[j]['labels']):
-                    x1, y1, x2, y2 = box
+                    x1, y1, x2, y2 = box.cpu().numpy()
                     axs[1].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, color='green'))
                     axs[1].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="green")
                 
