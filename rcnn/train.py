@@ -1,6 +1,7 @@
 from config import (
     DEVICE, NUM_CLASSES, NUM_EPOCHS, OUT_DIR,
-    VISUALIZE_TRANSFORMED_IMAGES, NUM_WORKERS, SAVE_ANNOTATED_IMAGES
+    VISUALIZE_TRANSFORMED_IMAGES, NUM_WORKERS, SAVE_ANNOTATED_IMAGES,
+    LEARNING_RATE
 )
 from model import create_model
 from utils import Averager, SaveBestModel, save_model, save_loss_plot, save_annotated_examples
@@ -116,7 +117,7 @@ if __name__ == '__main__':
     # get the model parameters
     params = [p for p in model.parameters() if p.requires_grad]
     # define the optimizer
-    optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
+    optimizer = torch.optim.Adam(params, lr=LEARNING_RATE)
     # initialize the Averager class
     train_loss_hist = Averager()
     val_loss_hist = Averager()

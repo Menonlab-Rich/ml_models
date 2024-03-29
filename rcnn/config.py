@@ -7,6 +7,7 @@ BATCH_SIZE = 16 # increase / decrease according to GPU memeory
 # If this is an int, the longer side of the image will be resized to this value, preserving the aspect ratio.
 # If this is a float between 0 and 1, the image will be resized by this factor.
 # If this is None, the image will not be resized.
+LEARNING_RATE=1e-4 # learning rate for training
 RESIZE_TO = 416 
 NUM_EPOCHS = 10 # number of epochs to train for
 NUM_WORKERS = 8 # number of worker processes for background data loading
@@ -20,6 +21,9 @@ VALID_ANNO_DIR = r'D:\CZI_scope\code\data\videos\training_data\dfa_cmos\voc_anno
 # classes: 0 index is reserved for background
 CLASSES = [
     '__background__', '-1', '1'
+]
+DISPLAY_CLASSES = [
+    '__background__', '625', '605' # The xml file class names are '-1' and '1' but we want to display them as '625' and '605
 ]
 NUM_CLASSES = len(CLASSES)
 # whether to visualize images after crearing the data loaders
