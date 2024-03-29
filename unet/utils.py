@@ -5,10 +5,12 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
 
-def generate_model_prediction(model, checkpoint_path, image_path, output_path, resize=1.):
+
+def generate_model_prediction(
+        model, checkpoint_path, image_path, output_path, resize=1.):
     '''
     Save the predictions of a model on an image to a file
-    
+
     Parameters:
     ----------
     model: torch.nn.Module
@@ -27,23 +29,30 @@ def generate_model_prediction(model, checkpoint_path, image_path, output_path, r
     '''
 
     # Load the model from the specified path
-    load_checkpoint(model, None, checkpoint_path) # optimizer is not needed for prediction
+    # optimizer is not needed for prediction
+    load_checkpoint(model, None, checkpoint_path)
     # Load and preprocess the image
     image = Image.open(image_path)
     # check if resize is a float
     if isinstance(resize, float):
-        image = image.resize((int(image.width * resize), int(image.height * resize)))
+        image = image.resize(
+            (int(image.width * resize),
+             int(image.height * resize)))
     elif isinstance(resize, tuple):
         image = image.resize(resize)
     else:
         try:
             resize = float(resize)
-            image = image.resize((int(image.width * resize), int(image.height * resize)))
+            image = image.resize(
+                (int(image.width * resize),
+                 int(image.height * resize)))
         except:
-            raise ValueError("resize must be a float or a tuple of two integers")
-    
-    image_array = np.expand_dims(np.array(image) / 255.0, axis=0)  # Normalize and add batch dimension
-    
+            raise ValueError(
+                "resize must be a float or a tuple of two integers")
+
+    # Normalize and add batch dimension
+    image_array = np.expand_dims(np.array(image) / 255.0, axis=0)
+
     # Predict
     model.eval()
     with torch.no_grad():
@@ -58,6 +67,65 @@ def generate_model_prediction(model, checkpoint_path, image_path, output_path, r
             # Convert to uint8 and save as an image
             Image.fromarray(y_fake.numpy()).save(output_path)
 
+
+def prepare_tensors_for_plotting(*img_tensors):
+    # Convert to float
+    np_imgs = []
+    for img_tensor in img_tensors:
+        img_tensor = img_tensor.to(dtype=torch.float32)
+
+        # Calculate min and max values
+        min_val = torch.min(img_tensor)
+        max_val = torch.max(img_tensor)
+
+        # Scale tensor to range 0 to 1
+        scaled_tensor = (img_tensor - min_val) / (max_val - min_val)
+
+        # Clamp values to ensure they are between 0 and 1
+        scaled_tensor = torch.clamp(scaled_tensor, 0, 1)
+
+        np_img = scaled_tensor.cpu().squeeze().numpy()
+        if np_img.shape[0] == 3:
+            np_img = np_img.transpose(1, 2, 0)
+
+        np_imgs.append(np_img)
+
+    return np_imgs if len(np_imgs) > 1 else np_imgs[0]
+
+
+def get_color_range(img, min_fn, max_fn):
+    '''
+    Get the color range for an image
+
+    Parameters:
+    ----------
+    img: torch.Tensor
+        Image to get the color range for
+    min_fn: function
+        Function to calculate the minimum value for the color range
+        If None, the minimum value of the image is used
+        If a number, that number is used as the minimum value
+    max_fn: function
+        Function to calculate the maximum value for the color range
+        If None, the maximum value of the image is used
+        If a number, that number is used as the maximum value
+    '''
+    img = np.asarray(img) # Convert to numpy array if not already
+    if min_fn is None:
+        vmin = img.min()
+    elif callable(min_fn):
+        vmin = min_fn(img)
+    else:
+        vmin = min_fn
+
+    if max_fn is None:
+        vmax = img.max()
+    elif callable(max_fn):
+        vmax = max_fn(img)
+    else:
+        vmax = max_fn
+
+    return vmin, vmax
 
 
 def save_examples(model, val_loader, epoch, folder, device):
@@ -78,36 +146,53 @@ def save_examples(model, val_loader, epoch, folder, device):
     model.eval()
     with torch.no_grad():
         y_fake = model(x)
-        # Normalize y_fake from [0, 255] to [0, 1] for matplotlib
-        y_fake = y_fake / 255.0
-    
-    # Assuming x is already normalized to [0, 1]
+        # Prepare tensors for plotting
+        y_fake = prepare_tensors_for_plotting(*y_fake)
+        x = prepare_tensors_for_plotting(*x)
+
     fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+    # Calculate dynamic range or use fixed values for color scaling
+    vmin, vmax = get_color_range(y_fake, config.CBAR_MIN, config.CBAR_MAX)
+
     for i in range(6):
         row = i // 3
         col = i % 3
-        # Display input (grayscale) image
-        axs[row, col].imshow(x[i].cpu().squeeze().numpy(), cmap='gray', interpolation='nearest')
+
+        axs[row, col].imshow(x[i], cmap=config.CMAP_IN, interpolation=config.PLOTTING_INTERPOLATION(
+            config.CHANNELS_INPUT), vmin=vmin, vmax=vmax)
         axs[row, col].set_title(f"Input {i+1}")
         axs[row, col].axis('off')
-        
+
         # Display predicted (RGB) image
         # Ensure y_fake is permuted from [C, H, W] to [H, W, C] for correct display
-        axs[(row+1)%2, col].imshow(y_fake[i].cpu().detach().numpy().transpose(1, 2, 0))
-        axs[(row+1)%2, col].set_title(f"Prediction {i+1}")
-        axs[(row+1)%2, col].axis('off')
+        axs[(row + 1) % 2, col].imshow(y_fake[i],
+                                       cmap=config.CMAP_OUT, interpolation=config.PLOTTING_INTERPOLATION(
+            config.CHANNELS_OUTPUT),
+            vmin=vmin, vmax=vmax)
+        axs[(row+1) % 2, col].set_title(f"Prediction {i+1}")
+        axs[(row+1) % 2, col].axis('off')
+
+        # Add a colorbar to the right of the figure
+    if config.CBAR and config.CHANNELS_OUTPUT == 1:
+        fig.subplots_adjust(right=0.85)  # Make room for the colorbar
+        cbar_ax = fig.add_axes([0.88, 0.15, 0.05, 0.7])  # Position of colorbar
+        # Normalization based on the vmin and vmax
+        norm = plt.Normalize(vmin=vmin, vmax=vmax)
+        sm = plt.cm.ScalarMappable(cmap=config.CMAP_OUT, norm=norm)
+        sm.set_array([])
+        fig.colorbar(sm, cax=cbar_ax)
 
     plt.tight_layout()
     plt.savefig(f"{folder}/comparison_epoch_{epoch}.png")
     plt.close('all')
-    
+
     model.train()
 
 
 def save_checkpoint(model, optimizer, filename):
     '''
     Save the model and optimizer state to a file
-    
+
     Parameters:
     ----------
     model: torch.nn.Module
@@ -261,11 +346,12 @@ class LoggerOrDefault():
 
         return cls._logger
 
+
 if __name__ == "__main__":
     from model import UNet
     # Example usage
     model = UNet(in_channels=config.CHANNELS_INPUT,
-                out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
+                 out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
     image_path = '/home/rich/Documents/school/menon/ml_models/unet/data/landscapes/gray/7128.jpg'
     output_path = './prediction.jpg'
     checkpoint_path = '/home/rich/Documents/school/menon/ml_models/unet/unet.pth.tar'

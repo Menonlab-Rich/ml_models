@@ -38,7 +38,7 @@ def main(predict_only=False):
                  out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
 
     opt = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
-    ds = Dataset(config.TRAIN_IMG_DIR, config.TARGET_DIR,
+    ds = Dataset(config.TRAIN_IMG_PATTERN, config.TARGET_IMG_PATTERN,
                  transforms=(config.transform_input, config.transform_target, config.transform_both),
                  channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT)
                  )
