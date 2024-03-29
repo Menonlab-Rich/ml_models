@@ -1,6 +1,6 @@
 from config import (
     DEVICE, NUM_CLASSES, NUM_EPOCHS, OUT_DIR,
-    VISUALIZE_TRANSFORMED_IMAGES, NUM_WORKERS,
+    VISUALIZE_TRANSFORMED_IMAGES, NUM_WORKERS, SAVE_ANNOTATED_IMAGES
 )
 from model import create_model
 from utils import Averager, SaveBestModel, save_model, save_loss_plot
