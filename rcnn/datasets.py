@@ -148,7 +148,10 @@ class CustomDataset(Dataset):
             width = self.resize[1]
             height = self.resize[0]
         else:
+            self.width = image.shape[1]
+            self.height = image.shape[0]
             return image
+        
         self.width = width
         self.height = height
         return cv2.resize(image, (width, height))
