@@ -12,11 +12,17 @@ from datasets import (
 import torch
 import matplotlib.pyplot as plt
 import time
+import logging
+
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s - Line: %(lineno)d',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 plt.style.use('ggplot')
 
 # function for running training iterations
 def train(train_data_loader, model):
-    print('Training')
+    logging.info('Training')
     global train_itr
     global train_loss_list
     
@@ -44,7 +50,7 @@ def train(train_data_loader, model):
 
 # function for running validation iterations
 def validate(valid_data_loader, model):
-    print('Validating')
+    logging.info('Validating')
     global val_itr
     global val_loss_list
     
@@ -73,8 +79,8 @@ if __name__ == '__main__':
     valid_dataset = create_valid_dataset()
     train_loader = create_train_loader(train_dataset, NUM_WORKERS)
     valid_loader = create_valid_loader(valid_dataset, NUM_WORKERS)
-    print(f"Number of training samples: {len(train_dataset)}")
-    print(f"Number of validation samples: {len(valid_dataset)}\n")
+    logging.info(f"Number of training samples: {len(train_dataset)}")
+    logging.info(f"Number of validation samples: {len(valid_dataset)}\n")
     # initialize the model and move to the computation device
     model = create_model(num_classes=NUM_CLASSES)
     model = model.to(DEVICE)
@@ -103,7 +109,7 @@ if __name__ == '__main__':
     save_best_model = SaveBestModel()
     # start the training epochs
     for epoch in range(NUM_EPOCHS):
-        print(f"\nEPOCH {epoch+1} of {NUM_EPOCHS}")
+        logging.info(f"\nEPOCH {epoch+1} of {NUM_EPOCHS}")
         # reset the training and validation loss histories for the current epoch
         train_loss_hist.reset()
         val_loss_hist.reset()
@@ -111,10 +117,10 @@ if __name__ == '__main__':
         start = time.time()
         train_loss = train(train_loader, model)
         val_loss = validate(valid_loader, model)
-        print(f"Epoch #{epoch+1} train loss: {train_loss_hist.value:.3f}")   
-        print(f"Epoch #{epoch+1} validation loss: {val_loss_hist.value:.3f}")   
+        logging.info(f"Epoch #{epoch+1} train loss: {train_loss_hist.value:.3f}")   
+        logging.info(f"Epoch #{epoch+1} validation loss: {val_loss_hist.value:.3f}")   
         end = time.time()
-        print(f"Took {((end - start) / 60):.3f} minutes for epoch {epoch}")
+        logging.info(f"Took {((end - start) / 60):.3f} minutes for epoch {epoch}")
         # save the best model till now if we have the least loss in the...
         # ... current epoch
         save_best_model(

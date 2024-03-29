@@ -9,6 +9,7 @@ from config import (
 )
 from torch.utils.data import Dataset, DataLoader
 from utils import collate_fn, get_train_transform, get_valid_transform
+import logging
 # the dataset class
 class CustomDataset(Dataset):
     def __init__(self, img_path, ann_path, resize, classes, transforms=None):
@@ -72,10 +73,25 @@ class CustomDataset(Dataset):
         
         # bounding box to tensor
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
+            # check if boxes is empty
+        if len(boxes) == 0:
+            # Set boxes to a tensor with shape (0, 4)
+            logging.warning(f"No bounding boxes found for {image_name}")
+            boxes = torch.zeros((0, 4), dtype=torch.float32)
+        else:
+            # bounding box to tensor
+            boxes = torch.as_tensor(boxes, dtype=torch.float32)
+
         # area of the bounding boxes
-        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        if boxes.nelement() == 0:
+            # If boxes is empty, set area to a tensor with shape (0,)
+            logging.warning(f"No bounding boxes found for {image_name}")
+            area = torch.zeros((0,), dtype=torch.float32)
+        else:
+            area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+
         # no crowd instances
-        iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
+        iscrowd = torch.zeros((len(boxes),), dtype=torch.int64)
         # labels to tensor
         labels = torch.as_tensor(labels, dtype=torch.int64)
         # prepare the final `target` dictionary
