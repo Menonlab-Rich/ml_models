@@ -21,8 +21,25 @@ class CustomDataset(Dataset):
         
         # get all the image paths in sorted order
         self.image_paths = glob.glob(f"{self.img_path}/*.jpg")
-        self.all_images = [image_path.split(os.path.sep)[-1] for image_path in self.image_paths]
+        self.all_images = [image_path.split(os.path.sep)[-1] for image_path in self.image_paths if self._validate_xml(image_path.split(os.path.sep)[-1])]
         self.all_images = sorted(self.all_images)
+        
+    def _validate_xml(self, image_name):
+        try:
+            xml_filename = image_name[:-4] + '.xml'
+            xml_file_path = os.path.join(self.ann_path, xml_filename)
+            tree = et.parse(xml_file_path)
+            root = tree.getroot()
+            if len(root.findall('object')) == 0:
+                return False
+            for member in root.findall('object'):
+                if member.find('name').text not in self.classes:
+                    return False
+            return True
+        except Exception as e:
+            logging.warning(f"Error validating XML file for {image_name}: {str(e)}")
+            return False
+    
     def __getitem__(self, idx):
         # capture the image name and the full image path
         image_name = self.all_images[idx]
