@@ -5,6 +5,7 @@ import torch
 import matplotlib.pyplot as plt
 from albumentations.pytorch import ToTensorV2
 from config import DEVICE, CLASSES, OUT_DIR
+import os
 plt.style.use('ggplot')
 # this class keeps track of the training and validation loss values...
 # ... and helps to get the average for each epoch as well
@@ -133,40 +134,45 @@ def save_loss_plot(OUT_DIR, train_loss, val_loss):
     plt.close('all')
     
 def save_annotated_examples(model, valid_loader, epoch):
-    model.eval()  # Set the model to evaluation mode
-    
-    with torch.no_grad():  # No need to track gradients
-        for i, (images, targets) in enumerate(valid_loader):
-            images = list(img.to(DEVICE) for img in images)  # Move images to the correct device
-            output = model(images)  # Get predictions
-            
-            for j, image in enumerate(images):
-                fig, axs = plt.subplots(2, 1, figsize=(10, 10))
+    try:
+        model.eval()  # Set the model to evaluation mode
+        
+        with torch.no_grad():  # No need to track gradients
+            for i, (images, targets) in enumerate(valid_loader):
+                images = list(img.to(DEVICE) for img in images)  # Move images to the correct device
+                output = model(images)  # Get predictions
                 
-                # Convert image from torch tensor to numpy array and normalize
-                np_image = image.cpu().numpy().transpose((1, 2, 0))
-                np_image = np_image * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
-                np_image = np.clip(np_image, 0, 1)
-                
-                # Plot predictions
-                axs[0].imshow(np_image)
-                axs[0].set_title("Predictions")
-                for box, label in zip(output[j]['boxes'], output[j]['labels']):
-                    x1, y1, x2, y2 = box.cpu().numpy()
-                    axs[0].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, color='red'))
-                    axs[0].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="red")
-                
-                # Plot ground truths
-                axs[1].imshow(np_image)
-                axs[1].set_title("Ground Truth")
-                for box, label in zip(targets[j]['boxes'], targets[j]['labels']):
-                    x1, y1, x2, y2 = box.cpu().numpy()
-                    axs[1].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, color='green'))
-                    axs[1].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="green")
-                
-                # Save the figure
-                fig.savefig(os.path.join(OUT_DIR, f'output_{i}_{j}_epoch_{epoch}.png'))
-                plt.close(fig)  # Close the figure to free memory
-                
-            if i == 10:  # Save images from the first 10 batches only (optional)
-                break
+                for j, image in enumerate(images):
+                    fig, axs = plt.subplots(2, 1, figsize=(10, 10))
+                    
+                    # Convert image from torch tensor to numpy array and normalize
+                    np_image = image.cpu().numpy().transpose((1, 2, 0))
+                    np_image = np_image * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
+                    np_image = np.clip(np_image, 0, 1)
+                    
+                    # Plot predictions
+                    axs[0].imshow(np_image)
+                    axs[0].set_title("Predictions")
+                    for box, label in zip(output[j]['boxes'], output[j]['labels']):
+                        x1, y1, x2, y2 = box.cpu().numpy()
+                        axs[0].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, color='red'))
+                        axs[0].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="red")
+                    
+                    # Plot ground truths
+                    axs[1].imshow(np_image)
+                    axs[1].set_title("Ground Truth")
+                    for box, label in zip(targets[j]['boxes'], targets[j]['labels']):
+                        x1, y1, x2, y2 = box.cpu().numpy()
+                        axs[1].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, color='green'))
+                        axs[1].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="green")
+                    
+                    # Save the figure
+                    fig.savefig(os.path.join(OUT_DIR, f'output_{i}_{j}_epoch_{epoch}.png'))
+                    plt.close(fig)  # Close the figure to free memory
+                    
+                if i == 10:  # Save images from the first 10 batches only (optional)
+                    break
+    except Exception as e:
+        logging.error(f"Error saving annotated images: {str(e)}")
+    finally:
+        model.train()
