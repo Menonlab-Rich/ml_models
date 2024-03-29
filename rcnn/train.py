@@ -53,6 +53,7 @@ def train(train_data_loader, model, optimizer, lr_scheduler):
         optimizer.zero_grad()
         images, targets = data
         
+        logging.info('Moving images and targets to computation device')
         # Move images and targets to the computation device
         images = list(image.to(DEVICE) for image in images)
         targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
@@ -75,6 +76,7 @@ def train(train_data_loader, model, optimizer, lr_scheduler):
     
         # update the loss value beside the progress bar for each iteration
         prog_bar.set_description(desc=f"Loss: {loss_value:.4f}")
+        torch.cuda.empty_cache() # clear the cache to avoid memory leaks
     
     lr_scheduler.step() # update the learning rate
     return train_loss_list
