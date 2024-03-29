@@ -22,60 +22,60 @@ logging.basicConfig(level=logging.DEBUG,
 
 plt.style.use('ggplot')
 
+def build_optimizer(model):
+    params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.SGD(
+        params,
+        lr=0.005,
+        momentum=0.9,
+        weight_decay=0.0005
+    )
+
+    # and a learning rate scheduler
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer,
+        step_size=3,
+        gamma=0.1
+    )
+    
+    return optimizer, lr_scheduler
+
 # function for running training iterations
-def train(train_data_loader, model, optimizer, accumulation_steps=2):
-    logging.info('Training')
+# function for running training iterations
+def train(train_data_loader, model, optimizer, lr_scheduler):
+    print('Training')
     global train_itr
     global train_loss_list
-
-    model.train()
-    scaler = GradScaler()  # Initialize the gradient scaler for AMP
-
-    # initialize tqdm progress bar
+    
+     # initialize tqdm progress bar
     prog_bar = tqdm(train_data_loader, total=len(train_data_loader))
-
-    accumulated_loss = 0.0  # To track loss over accumulation steps
-
-    for i, data in enumerate(prog_bar):
+    scaler = GradScaler()
+    
+    params = [p for p in model.parameters() if p.requires_grad]
+    
+    for i, data in enumerate(prog_bar):         
+        optimizer.zero_grad()
         images, targets = data
-        images = list(image.to(DEVICE) for image in images)
-        targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
-
-        # Scales the loss for automatic mixed precision
         with autocast():
             loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
-
-        # Scale the loss to prevent underflow
+        
+        
+        
+        loss_value = losses.item()
+        train_loss_list.append(loss_value)
+        train_loss_hist.send(loss_value)
+        
         scaler.scale(losses).backward()
-
-        # Accumulate loss for reporting
-        accumulated_loss += losses.item()
-
-        # Only step and zero the gradients every accumulation_steps
-        if (i + 1) % accumulation_steps == 0:
-            scaler.step(optimizer)  # Update model parameters
-            scaler.update()  # Update the scaler
-            optimizer.zero_grad()  # Reset gradients
-            
-            # Log the accumulated loss averaged over accumulation steps and reset
-            loss_value = accumulated_loss / accumulation_steps
-            train_loss_list.append(loss_value)
-            train_loss_hist.send(loss_value)
-            accumulated_loss = 0.0  # Reset accumulated loss
-            
-            # Update progress bar description with the latest loss
-            prog_bar.set_description(desc=f"Loss: {loss_value:.4f}")
-            train_itr += 1
-
-    # Handle any remaining accumulated gradients if the dataset size
-    # isn't perfectly divisible by accumulation_steps * batch_size
-    if len(train_data_loader) % accumulation_steps != 0:
-        scaler.step(optimizer)
+        scaler.step(optimizer) # update the model weights
         scaler.update()
-        optimizer.zero_grad()
-        # No need to log loss here as it's done in the loop
-
+        
+        lr_scheduler.step() # update the learning rate
+        
+        train_itr += 1
+    
+        # update the loss value beside the progress bar for each iteration
+        prog_bar.set_description(desc=f"Loss: {loss_value:.4f}")
     return train_loss_list
 
 # function for running validation iterations
@@ -114,10 +114,7 @@ if __name__ == '__main__':
     # initialize the model and move to the computation device
     model = create_model(num_classes=NUM_CLASSES)
     model = model.to(DEVICE)
-    # get the model parameters
-    params = [p for p in model.parameters() if p.requires_grad]
-    # define the optimizer
-    optimizer = torch.optim.Adam(params, lr=LEARNING_RATE)
+    optimizer, scheduler = build_optimizer(model)
     # initialize the Averager class
     train_loss_hist = Averager()
     val_loss_hist = Averager()
@@ -128,13 +125,11 @@ if __name__ == '__main__':
     train_loss_list = []
     val_loss_list = []
     # name to save the trained model with
-    MODEL_NAME = 'model'
+    MODEL_NAME = 'czi_rcnn_PSF.pth'
     # whether to show transformed images from data loader or not
     if VISUALIZE_TRANSFORMED_IMAGES:
         from utils import show_tranformed_image
         show_tranformed_image(train_loader)
-        
-        save_annotated_examples(model, valid_loader)
     # initialize SaveBestModel class
     save_best_model = SaveBestModel()
     # start the training epochs
@@ -145,7 +140,7 @@ if __name__ == '__main__':
         val_loss_hist.reset()
         # start timer and carry out training and validation
         start = time.time()
-        train_loss = train(train_loader, model, optimizer)
+        train_loss = train(train_loader, model, optimizer, scheduler)
         val_loss = validate(valid_loader, model)
         logging.info(f"Epoch #{epoch+1} train loss: {train_loss_hist.value:.3f}")   
         logging.info(f"Epoch #{epoch+1} validation loss: {val_loss_hist.value:.3f}")   
