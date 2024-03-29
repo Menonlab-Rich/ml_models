@@ -3,7 +3,7 @@ from config import (
     VISUALIZE_TRANSFORMED_IMAGES, NUM_WORKERS, SAVE_ANNOTATED_IMAGES
 )
 from model import create_model
-from utils import Averager, SaveBestModel, save_model, save_loss_plot
+from utils import Averager, SaveBestModel, save_model, save_loss_plot, save_annotated_examples
 from tqdm.auto import tqdm
 from datasets import (
     create_train_dataset, create_valid_dataset, 
@@ -97,8 +97,7 @@ if __name__ == '__main__':
     if VISUALIZE_TRANSFORMED_IMAGES:
         from utils import show_tranformed_image
         show_tranformed_image(train_loader)
-    if SAVE_ANNOTATED_IMAGES:
-        from utils import save_annotated_examples
+        
         save_annotated_examples(model, valid_loader)
     # initialize SaveBestModel class
     save_best_model = SaveBestModel()
@@ -125,3 +124,5 @@ if __name__ == '__main__':
         save_model(epoch, model, optimizer)
         # save loss plot
         save_loss_plot(OUT_DIR, train_loss, val_loss)
+        if SAVE_ANNOTATED_IMAGES:
+            save_annotated_examples(model, valid_loader, epoch)

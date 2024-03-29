@@ -132,7 +132,7 @@ def save_loss_plot(OUT_DIR, train_loss, val_loss):
     print('SAVING PLOTS COMPLETE...')
     plt.close('all')
     
-def save_annotated_examples(model, valid_loader):
+def save_annotated_examples(model, valid_loader, epoch):
     model.eval()  # Set the model to evaluation mode
     
     with torch.no_grad():  # No need to track gradients
@@ -165,7 +165,7 @@ def save_annotated_examples(model, valid_loader):
                     axs[1].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="green")
                 
                 # Save the figure
-                fig.savefig(os.path.join(OUT_DIR, f'output_{i}_{j}.png'))
+                fig.savefig(os.path.join(OUT_DIR, f'output_{i}_{j}_epoch_{epoch}.png'))
                 plt.close(fig)  # Close the figure to free memory
                 
             if i == 10:  # Save images from the first 10 batches only (optional)
