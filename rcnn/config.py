@@ -8,7 +8,7 @@ BATCH_SIZE = 16 # increase / decrease according to GPU memeory
 # If this is a float between 0 and 1, the image will be resized by this factor.
 # If this is None, the image will not be resized.
 LEARNING_RATE=1e-4 # learning rate for training
-RESIZE_TO = 416 
+RESIZE_TO = None 
 NUM_EPOCHS = 10 # number of epochs to train for
 NUM_WORKERS = 8 # number of worker processes for background data loading
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
