@@ -40,7 +40,6 @@ def build_optimizer(model):
     return optimizer, lr_scheduler
 
 # function for running training iterations
-# function for running training iterations
 def train(train_data_loader, model, optimizer, lr_scheduler):
     print('Training')
     global train_itr
@@ -50,11 +49,14 @@ def train(train_data_loader, model, optimizer, lr_scheduler):
     prog_bar = tqdm(train_data_loader, total=len(train_data_loader))
     scaler = GradScaler()
     
-    params = [p for p in model.parameters() if p.requires_grad]
-    
     for i, data in enumerate(prog_bar):         
         optimizer.zero_grad()
         images, targets = data
+        
+        # Move images and targets to the computation device
+        images = list(image.to(DEVICE) for image in images)
+        targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
+        
         with autocast():
             loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
@@ -69,16 +71,18 @@ def train(train_data_loader, model, optimizer, lr_scheduler):
         scaler.step(optimizer) # update the model weights
         scaler.update()
         
-        lr_scheduler.step() # update the learning rate
-        
         train_itr += 1
     
         # update the loss value beside the progress bar for each iteration
         prog_bar.set_description(desc=f"Loss: {loss_value:.4f}")
+    
+    lr_scheduler.step() # update the learning rate
     return train_loss_list
 
 # function for running validation iterations
 def validate(valid_data_loader, model):
+    model.eval()  # Set the model to evaluation mode.
+    
     logging.info('Validating')
     global val_itr
     global val_loss_list
@@ -101,6 +105,7 @@ def validate(valid_data_loader, model):
         val_itr += 1
         # update the loss value beside the progress bar for each iteration
         prog_bar.set_description(desc=f"Loss: {loss_value:.4f}")
+    model.train()  # Set the model back to training mode
     return val_loss_list
 
 if __name__ == '__main__':
