@@ -4,43 +4,48 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from albumentations.pytorch import ToTensorV2
-from config import DEVICE, CLASSES, OUT_DIR
+from config import DEVICE, CLASSES, OUT_DIR, DISPLAY_CLASSES
 import os
 plt.style.use('ggplot')
 # this class keeps track of the training and validation loss values...
 # ... and helps to get the average for each epoch as well
+
+
 class Averager:
     def __init__(self):
         self.current_total = 0.0
         self.iterations = 0.0
-        
+
     def send(self, value):
         self.current_total += value
         self.iterations += 1
-    
+
     @property
     def value(self):
         if self.iterations == 0:
             return 0
         else:
             return 1.0 * self.current_total / self.iterations
-    
+
     def reset(self):
         self.current_total = 0.0
         self.iterations = 0.0
+
+
 class SaveBestModel:
     """
     Class to save the best model while training. If the current epoch's 
     validation loss is less than the previous least less, then save the
     model state.
     """
+
     def __init__(
         self, best_valid_loss=float('inf')
     ):
         self.best_valid_loss = best_valid_loss
-        
+
     def __call__(
-        self, current_valid_loss, 
+        self, current_valid_loss,
         epoch, model, optimizer
     ):
         if current_valid_loss < self.best_valid_loss:
@@ -51,7 +56,7 @@ class SaveBestModel:
                 'epoch': epoch+1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                }, 'outputs/best_model.pth')
+            }, 'outputs/best_model.pth')
 
 
 def collate_fn(batch):
@@ -61,29 +66,35 @@ def collate_fn(batch):
     """
     return tuple(zip(*batch))
 # define the training tranforms
+
+
 def get_train_transform():
     return A.Compose([
-        A.Flip(0.5),
-        A.RandomRotate90(0.5),
-        A.MotionBlur(p=0.2),
-        A.MedianBlur(blur_limit=3, p=0.1),
-        A.Blur(blur_limit=3, p=0.1),
-        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # A.Flip(0.5),
+        # A.RandomRotate90(0.5),
+        # A.MotionBlur(p=0.2),
+        # A.MedianBlur(blur_limit=3, p=0.1),
+        # A.Blur(blur_limit=3, p=0.1),
+        # A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ToTensorV2(p=1.0),
     ], bbox_params={
         'format': 'pascal_voc',
         'label_fields': ['labels']
     })
-    
+
 # define the validation transforms
+
+
 def get_valid_transform():
     return A.Compose([
-        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ToTensorV2(p=1.0),
     ], bbox_params={
-        'format': 'pascal_voc', 
+        'format': 'pascal_voc',
         'label_fields': ['labels']
     })
+
+
 def show_tranformed_image(train_loader):
     """
     This function shows the transformed images from the `train_loader`.
@@ -101,24 +112,28 @@ def show_tranformed_image(train_loader):
             sample = images[i].permute(1, 2, 0).cpu().numpy()
             for box_num, box in enumerate(boxes):
                 cv2.rectangle(sample,
-                            (box[0], box[1]),
-                            (box[2], box[3]),
-                            (0, 0, 255), 2)
-                cv2.putText(sample, CLASSES[labels[box_num]], 
-                            (box[0], box[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 
+                              (box[0], box[1]),
+                              (box[2], box[3]),
+                              (0, 0, 255), 2)
+                cv2.putText(sample, CLASSES[labels[box_num]],
+                            (box[0], box[1]-10), cv2.FONT_HERSHEY_SIMPLEX,
                             1.0, (0, 0, 255), 2)
             cv2.imshow('Transformed image', sample)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
+
+
 def save_model(epoch, model, optimizer):
     """
     Function to save the trained model till current epoch, or whenver called
     """
     torch.save({
-                'epoch': epoch+1,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                }, 'outputs/last_model.pth')
+        'epoch': epoch+1,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+    }, 'outputs/last_model.pth')
+
+
 def save_loss_plot(OUT_DIR, train_loss, val_loss):
     figure_1, train_ax = plt.subplots()
     figure_2, valid_ax = plt.subplots()
@@ -132,45 +147,74 @@ def save_loss_plot(OUT_DIR, train_loss, val_loss):
     figure_2.savefig(f"{OUT_DIR}/valid_loss.png")
     print('SAVING PLOTS COMPLETE...')
     plt.close('all')
-    
+
+
 def save_annotated_examples(model, valid_loader, epoch):
     try:
         model.eval()  # Set the model to evaluation mode
-        
+
         with torch.no_grad():  # No need to track gradients
             for i, (images, targets) in enumerate(valid_loader):
-                images = list(img.to(DEVICE) for img in images)  # Move images to the correct device
+                # Move images to the correct device
+                images = list(img.to(DEVICE) for img in images)
                 output = model(images)  # Get predictions
-                
+
                 for j, image in enumerate(images):
                     fig, axs = plt.subplots(2, 1, figsize=(10, 10))
-                    
+
                     # Convert image from torch tensor to numpy array and normalize
                     np_image = image.cpu().numpy().transpose((1, 2, 0))
-                    np_image = np_image * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
+                    # scale the image back to [0, 1]
+                    np_image = (np_image - np_image.min()
+                                ) / (np_image.max() - np_image.min())
+                    # clip the values to [0, 1] just in case
                     np_image = np.clip(np_image, 0, 1)
-                    
+
                     # Plot predictions
                     axs[0].imshow(np_image)
                     axs[0].set_title("Predictions")
-                    for box, label in zip(output[j]['boxes'], output[j]['labels']):
+                    for box, label in zip(
+                            output[j]['boxes'],
+                            output[j]['labels']):
                         x1, y1, x2, y2 = box.cpu().numpy()
-                        axs[0].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, color='red'))
-                        axs[0].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="red")
-                    
+                        label_idx = label.cpu().numpy()
+                        display_label = DISPLAY_CLASSES[label_idx]
+                        axs[0].add_patch(
+                            plt.Rectangle(
+                                (x1, y1),
+                                x2 - x1, y2 - y1, fill=False, color='red'
+                                if label_idx == 1 else 'blue'))
+                        axs[0].text(
+                            x1, y1, display_label, fontsize=8, color='white',
+                            backgroundcolor="red"
+                            if label_idx == 1 else "blue")
+
                     # Plot ground truths
                     axs[1].imshow(np_image)
                     axs[1].set_title("Ground Truth")
-                    for box, label in zip(targets[j]['boxes'], targets[j]['labels']):
+                    for box, label in zip(
+                            targets[j]['boxes'],
+                            targets[j]['labels']):
+                        label_idx = label.cpu().numpy()
+                        display_label = DISPLAY_CLASSES[label_idx]
                         x1, y1, x2, y2 = box.cpu().numpy()
-                        axs[1].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, color='green'))
-                        axs[1].text(x1, y1, str(label.cpu().numpy()), fontsize=8, color='white', backgroundcolor="green")
-                    
+                        axs[1].add_patch(
+                            plt.Rectangle(
+                                (x1, y1),
+                                x2 - x1, y2 - y1, fill=False, color='red'
+                                if label == 1 else 'blue'))
+                        axs[1].text(
+                            x1, y1, display_label, fontsize=8, color='white',
+                            backgroundcolor="red" if label == 1 else "blue")
+
                     # Save the figure
-                    fig.savefig(os.path.join(OUT_DIR, f'output_{i}_{j}_epoch_{epoch}.png'))
+                    fig.savefig(
+                        os.path.join(
+                            OUT_DIR, f'output_{i}_{j}_epoch_{epoch}.png'))
                     plt.close(fig)  # Close the figure to free memory
-                    
-                if i == 10:  # Save images from the first 10 batches only (optional)
+
+                # Save images from the first 10 batches only (optional)
+                if i == 10:
                     break
     except Exception as e:
         logging.error(f"Error saving annotated images: {str(e)}")
