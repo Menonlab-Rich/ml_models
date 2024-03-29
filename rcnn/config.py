@@ -1,14 +1,13 @@
 import torch
 import os
 
-BATCH_SIZE = 16 # increase / decrease according to GPU memeory
+BATCH_SIZE = 8 # increase / decrease according to GPU memeory
 # resize the image for training and transforms
 # If this is a tuple of 2 integers, it should be (height, width).
 # If this is an int, the longer side of the image will be resized to this value, preserving the aspect ratio.
 # If this is a float between 0 and 1, the image will be resized by this factor.
 # If this is None, the image will not be resized.
-LEARNING_RATE=1e-4 # learning rate for training
-RESIZE_TO = None 
+RESIZE_TO = 0.25 
 NUM_EPOCHS = 10 # number of epochs to train for
 NUM_WORKERS = 8 # number of worker processes for background data loading
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
