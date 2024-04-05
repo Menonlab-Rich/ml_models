@@ -5,6 +5,8 @@ import torch.nn as nn
 
 # Do not change these parameters
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+TARGET_READER = None # Function to read the target data leave as none here and define at the bottom
+INPUT_READER = None # Function to read the input data leave as none here and define at the bottom
 
 # Adjust these parameters to affect the training process. 
 LEARNING_RATE = 2e-4 
@@ -36,6 +38,17 @@ SAVE_MODEL = True # set to True to save the model
 CHECKPOINT = "unet.pth.tar" # Saved modle filename
 
 
+## BEGIN OPTIONAL
+
+## Define the reader functions if you are using a custom dataset
+## IMPORTANT: This function should be commented out if you are using the default dataset
+
+import numpy as np
+def TARGET_READER(x, channels):
+    target_np = np.load(x)['mask']
+    target_mapped = np.where(target_np == -1, 1, np.where(target_np == 0, 0, 2))
+
+## END OPTIONAL
 
 # Augmentation pipeline
 # Find documentation here: https://albumentations.ai/docs/
