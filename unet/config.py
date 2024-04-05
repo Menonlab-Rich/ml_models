@@ -38,17 +38,7 @@ SAVE_MODEL = True # set to True to save the model
 CHECKPOINT = "unet.pth.tar" # Saved modle filename
 
 
-## BEGIN OPTIONAL
 
-## Define the reader functions if you are using a custom dataset
-## IMPORTANT: This function should be commented out if you are using the default dataset
-
-import numpy as np
-def TARGET_READER(x, channels):
-    target_np = np.load(x)['mask']
-    target_mapped = np.where(target_np == -1, 1, np.where(target_np == 0, 0, 2))
-
-## END OPTIONAL
 
 # Augmentation pipeline
 # Find documentation here: https://albumentations.ai/docs/
@@ -90,4 +80,6 @@ transform_input = A.Compose(
 # This is because ToTensorV2() should be the last transformation and it should be applied to both the input and target images
 transform_target = [] # No transformations for the target images by default
 
+# Include any optional configs from the optional_configs.py file here
+from optional_configs import * # This will import all the variables from the optional_configs.py file
 
