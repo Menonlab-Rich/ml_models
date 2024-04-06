@@ -105,3 +105,10 @@ transform_target = A.Compose(
         ToTensorV2(),
     ],
 )
+
+
+# Adjust these parmaters to affect the training data
+# Glob pattern for training images
+TRAIN_IMG_PATTERN = "/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/*.tif"
+# Glob pattern for target images
+TARGET_IMG_PATTERN = "/scratch/general/nfs1/u0977428/transfer/preprocess/masks/*.npz"
