@@ -38,6 +38,7 @@ class Dataset(Dataset):
 
         '''
         # Store the paths to the images
+        self._defaults = None
         self.images, self.targets = self._load_data(
             input_globbing_pattern, target_globbing_pattern)
         # Store the transformations to be applied to the images
@@ -49,10 +50,21 @@ class Dataset(Dataset):
         # Log the number of target images found
         self.logger.info(f"Found {len(self.targets)} target images")
 
+    def set_args(self, **kwargs):
+        '''
+        Set the argument for the Dataset object
+        '''
+        self._parse_args(kwargs)
+        
     def _parse_args(self, kwargs):
         '''
         Parse the arguments passed to the constructor
         '''
+        if self._defaults is not None:
+            # Update the defaults with the new arguments
+            self._defaults.update(kwargs)
+            kwargs = self._defaults
+    
         defaults = {
             "target_input_combined": False, "logger": logging.getLogger(
                 __name__),
@@ -61,15 +73,18 @@ class Dataset(Dataset):
                 "RGB" if channels == 3 else "L")),
             "target_reader": lambda x, channels: np.array(Image.open(x).convert(
                 "RGB" if channels == 3 else "L")),
-            "transform_keys": {"input": "image", "target": "image", "both": ("image", "target")}
+            "transform_keys": {"input": "image", "target": "image", "both": ("image", "target")},
+            "to_float": True, # Convert the images to float by default
         }
         # Store the arguments as attributes of the defaults object
         for key, value in kwargs.items():
-            defaults[key] = value
+            defaults[key] = value if key in defaults else defaults[key]
 
         # Store the attributes of the defaults object as attributes of the Dataset object
         for key, value in defaults.items():
             setattr(self, key, value)
+        
+        self._defaults = defaults # save the defaults so we can update them later if needed
 
     def _load_data(self, input_globbing_pattern, target_globbing_pattern):
         inputs = glob(input_globbing_pattern, recursive=True)
@@ -88,7 +103,7 @@ class Dataset(Dataset):
 
         if self.transform:
             # Check if the transform is a list (legacy behavior)
-            if isinstance(self.transform, list):
+            if isinstance(self.transform, list) or isinstance(self.transform, tuple):
                 warnings.warn(
                     "Using a list for transformations is deprecated. Use a dictionary with keys 'input', 'target', and 'both' for clearer and more robust transformation application.",
                     DeprecationWarning)
@@ -134,4 +149,9 @@ class Dataset(Dataset):
 
         # Ensure input and target are tensors (considering they might already be tensors after transformation)
         input_tensor, target_tensor = map(tensor, (input_, target_))
-        return input_tensor.float(), target_tensor.float()
+        if self.to_float:
+            input_tensor = input_tensor.float()
+            target_tensor = target_tensor.float()
+        
+        return input_tensor, target_tensor
+        

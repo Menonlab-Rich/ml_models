@@ -13,7 +13,7 @@ from model import UNet
 def train(loader, model, opt, loss_fn, scaler):
     loop = tqdm(loader, leave=True)
     for idx, (x, y) in enumerate(loop):
-        x, y = x.to(config.DEVICE).float(), y.to(config.DEVICE).float()
+        x, y = x.to(config.DEVICE), y.to(config.DEVICE)
 
         if len(y.shape) < 4:
             y = y.unsqueeze(1)  # add channel dimension
@@ -41,7 +41,13 @@ def main(predict_only=False):
     ds = Dataset(config.TRAIN_IMG_PATTERN, config.TARGET_IMG_PATTERN,
                  transforms=(config.transform_input, config.transform_target,
                              config.transform_both),
-                 channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT))
+                 channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT),
+                 to_float=config.DATASET_TO_FLOAT
+        )
+    if config.INPUT_READER:
+        ds.set_args(input_reader=config.INPUT_READER,)
+    if config.TARGET_READER:
+        ds.set_args(target_reader=config.TARGET_READER)
     # split the dataset into train and validation sets with 80% and 20% of the data respectively
     training_set, validation_set = utils.split_dataset(ds)
     train_loader = DataLoader(training_set, shuffle=True)
