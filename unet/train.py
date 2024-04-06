@@ -39,9 +39,9 @@ def main(predict_only=False):
 
     opt = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
     ds = Dataset(config.TRAIN_IMG_PATTERN, config.TARGET_IMG_PATTERN,
-                 transforms=(config.transform_input, config.transform_target, config.transform_both),
-                 channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT)
-                 )
+                 transforms=(config.transform_input, config.transform_target,
+                             config.transform_both),
+                 channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT))
     # split the dataset into train and validation sets with 80% and 20% of the data respectively
     training_set, validation_set = utils.split_dataset(ds)
     train_loader = DataLoader(training_set, shuffle=True)
@@ -57,11 +57,16 @@ def main(predict_only=False):
 
     scaler = torch.cuda.amp.GradScaler()
     if predict_only:
-        utils.save_examples(model, val_loader, 0, config.EXAMPLES_DIR, config.DEVICE)
+        utils.save_examples(model, val_loader, 0,
+                            config.EXAMPLES_DIR, config.DEVICE)
         return
     for epoch in range(config.NUM_EPOCHS):
         train(train_loader, model, opt, config.LOSS_FN, scaler)
-        utils.save_examples(model, val_loader, epoch, config.EXAMPLES_DIR, config.DEVICE)
+        utils.save_examples(model, val_loader, epoch,
+                            config.EXAMPLES_DIR, config.DEVICE)
+        utils.gen_evaluation_report(
+            model, val_loader, config.DEVICE, config.TASK, multi_channel=True
+            if config.CHANNELS_OUTPUT > 1 else False)
         if config.SAVE_MODEL:
             utils.save_checkpoint(model, opt, filename=config.CHECKPOINT)
 
