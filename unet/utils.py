@@ -4,6 +4,8 @@ import logging
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
+from typing import Sequence
+import torch.nn.functional as F
 
 
 def generate_model_prediction(
@@ -68,6 +70,28 @@ def generate_model_prediction(
             Image.fromarray(y_fake.numpy()).save(output_path)
 
 
+def tensor_to_probability_map(tensor, classes: Sequence[int] = None):
+    class_map = torch.tensor(classes, device=tensor.device)  # 3 classes corr
+    probabilities = F.softmax(tensor, dim=0)
+    predictions = torch.argmax(probabilities, dim=0)
+    return class_map[predictions]
+
+
+def evaluate_proability_model(model, loader, device=config.DEVICE):
+    model.eval()
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(device)
+            y = y.to(device)
+            y_fake = model(x)
+            y_pred = tensor_to_probability_map(y_fake)
+            y_true = tensor_to_probability_map(y)
+            # Calculate the accuracy
+            accuracy = torch.sum(
+                y_pred == y_true) / (y_pred.shape[0] * y_pred.shape[1] * y_pred.shape[2])
+            print(f"Accuracy: {accuracy.item()}")
+
+
 def prepare_tensors_for_plotting(*img_tensors):
     # Convert to float
     np_imgs = []
@@ -110,7 +134,7 @@ def get_color_range(img, min_fn, max_fn):
         If None, the maximum value of the image is used
         If a number, that number is used as the maximum value
     '''
-    img = np.asarray(img) # Convert to numpy array if not already
+    img = np.asarray(img)  # Convert to numpy array if not already
     if min_fn is None:
         vmin = img.min()
     elif callable(min_fn):
@@ -126,6 +150,129 @@ def get_color_range(img, min_fn, max_fn):
         vmax = max_fn
 
     return vmin, vmax
+
+
+def logits_to_rgb(logits, color_map):
+    """
+    Converts logits from a model to an RGB image based on a provided color map.
+
+    Parameters:
+    - logits: torch.Tensor
+        The raw output logits from the model. Shape: [N, C, H, W].
+    - color_map: dict
+        A dictionary mapping class indices to RGB colors.
+
+    Returns:
+    - torch.Tensor: An RGB image. Shape: [N, H, W, 3].
+    """
+    # Apply softmax to get probabilities and then argmax to get predicted class indices
+    probs = torch.nn.functional.softmax(logits, dim=1)
+    predictions = torch.argmax(probs, dim=1)
+
+    # Prepare an empty tensor for the RGB image
+    rgb_image = torch.zeros(
+        predictions.size(0),
+        predictions.size(1),
+        predictions.size(2),
+        3, dtype=torch.uint8, device=logits.device)
+
+    for class_index, color in color_map.items():
+        mask = predictions == class_index
+        for c in range(3):  # RGB channels
+            rgb_image[mask, c] = color[c]
+
+    # Moving the channel to the last dimension to match [N, H, W, 3] for plotting
+    return rgb_image.permute(0, 2, 3, 1).cpu().numpy()
+
+
+def map_to_rgb(y: np.ndarray, color_map: dict) -> np.ndarray:
+    """
+    Maps class indices to RGB colors based on a provided color map.
+
+    Parameters:
+    - y: np.ndarray
+        The class indices. Shape: [N, H, W].
+    - color_map: dict
+        A dictionary mapping class indices to RGB colors.
+
+    Returns:
+    - np.ndarray: An RGB image. Shape: [N, H, W, 3].
+    """
+    # Prepare an empty tensor for the RGB image
+    rgb_image = np.zeros(y.shape + (3,), dtype=np.uint8)
+    for class_index, color in color_map.items():
+        mask = y == class_index
+        for c in range(3):  # RGB channels
+            rgb_image[mask, c] = color[c]
+
+    return rgb_image
+
+
+def gen_evaluation_report(model, val_loader, device, task, multi_channel=False):
+    '''
+    Generate an evaluation report for the model
+    Depending on the task, different metrics are calculated
+
+    Parameters:
+    ----------
+    model: torch.nn.Module
+        Model to evaluate
+    val_loader: torch.utils.data.DataLoader
+        DataLoader containing the validation data
+    device: str
+        Device to use for evaluation
+    task: str
+        Task to evaluate the model on. Either 'segmentation' or 'translation'
+    multi_channel: bool, Default: False
+        Whether the images have multiple channels (only relevant for translation task)
+    '''
+    if task == 'segmentation':
+        from sklearn.metrics import jaccard_score, f1_score
+        model.eval()
+        y_true = []
+        y_pred = []
+        with torch.no_grad():
+            for x, y in val_loader:
+                x, y = x.to(device), y.to(device)
+                logits = model(x)
+                # Assuming NCHW format and class dim=1
+                preds = torch.argmax(logits, dim=1)
+
+                # Move to CPU and convert to numpy for sklearn compatibility
+                preds_np = preds.cpu().numpy().flatten()
+                y_np = y.cpu().numpy().flatten()
+
+                y_pred.extend(preds_np)
+                y_true.extend(y_np)
+
+            # Calculate metrics
+            jaccard = jaccard_score(y_true, y_pred, average='weighted')
+            f1 = f1_score(y_true, y_pred, average='weighted')
+            pixel_accuracy = np.mean(np.array(y_true) == np.array(y_pred))
+
+            print(f"Pixel Accuracy: {pixel_accuracy:.4f}")
+            print(f"Jaccard Score: {jaccard:.4f}")
+            print(f"F1 Score: {f1:.4f}")
+    elif task == 'translation':
+        from skimage.metrics import structural_similarity as ssim
+        model.eval()
+        losses = []
+        ssim_scores = []
+        with torch.no_grad():
+            for x, y in val_loader:
+                x, y = x.to(device), y.to(device)
+                y_fake = model(x)
+                loss = torch.nn.MSELoss()(y_fake, y)
+                losses.append(loss.item())
+                # Ensure correct conversion and handling of batches
+                for i in range(y_fake.shape[0]):
+                    ssim_score = ssim(
+                        y_fake[i].cpu().numpy(),
+                        y[i].cpu().numpy(),
+                        multichannel=multi_channel)
+                    ssim_scores.append(ssim_score)
+        print(f"Mean Squared Error: {np.mean(losses):.4f}")
+        print(f"Average SSIM: {np.mean(ssim_scores):.4f}")
 
 
 def save_examples(model, val_loader, epoch, folder, device):
@@ -146,6 +293,9 @@ def save_examples(model, val_loader, epoch, folder, device):
     model.eval()
     with torch.no_grad():
         y_fake = model(x)
+        if config.TASK == 'segmentation':
+            y_fake = logits_to_rgb(y_fake, config.COLOR_MAP)
+            y = map_to_rgb(y, config.COLOR_MAP)
         # Prepare tensors for plotting
         y_fake = prepare_tensors_for_plotting(*y_fake)
         x = prepare_tensors_for_plotting(*x)

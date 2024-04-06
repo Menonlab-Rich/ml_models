@@ -1,43 +1,65 @@
+from ml_models.unet.custom_configs import *
 import torch
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import torch.nn as nn
 
-# Do not change these parameters
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TARGET_READER = None # Function to read the target data leave as none here and define at the bottom
-INPUT_READER = None # Function to read the input data leave as none here and define at the bottom
+'''
+UNet configurations
+These configurations represent the default settings for the UNet model.
+They can be customized by creating a custom_configs.py file in the same directory
+If the custom_configs.py file is present, the configurations in it will override the default configurations
+Do NOT change the default configurations here. 
+Instead, create a custom_configs.py file and change the configurations there.
+'''
 
-# Adjust these parameters to affect the training process. 
-LEARNING_RATE = 2e-4 
+# Set the device to cuda if available, otherwise use cpu (probably good not to change this)
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# Function to read the target images. This function is used to read the target images during training if you want to customize the reading process
+TARGET_READER = None
+# Function to read the input images. This function is used to read the input images during training if you want to customize the reading process
+INPUT_READER = None
+# Task to perform. Options are 'classification', 'segmentation', 'translation
+TASK = 'translation'
+
+# Adjust these parameters to affect the training process.
+LEARNING_RATE = 2e-4
 BATCH_SIZE = 16
-NUM_EPOCHS = 6 # number of epochs to train the model
-NUM_WORKERS = 8 # based on number of cores
-CHANNELS_INPUT = 3 # Grayscale
-CHANNELS_OUTPUT = 3 # RGB
-LOSS_FN = lambda x, y: nn.L1Loss()(x, y) * 100 # L1 loss with a weight of 100
+NUM_EPOCHS = 6  # number of epochs to train the model
+NUM_WORKERS = 8  # based on number of cores
+CHANNELS_INPUT = 3  # RGB
+CHANNELS_OUTPUT = 3  # RGB
+
+# The loss function tells the model how well it is doing. You can customize this function to suit your task
+def LOSS_FN(x, y): return nn.L1Loss()(
+    x, y) * 100  # L1 loss with a weight of 100
+
 
 # Adjust these parmaters to affect the training data
-IMAGE_SIZE = 256 # size of your input images, you can increase it if you have large memory
-TRAIN_IMG_PATTERN="/scratch/general/nfs1/u0977428/Training/jpg/IN*.jpg" # Glob pattern for training images
-TARGET_IMG_PATTERN="/scratch/general/nfs1/u0977428/Training/jpg/OUT*.jpg" # Glob pattern for target images
+IMAGE_SIZE = 256  # size of your input images, you can increase it if you have large memory
+# Glob pattern for training images
+TRAIN_IMG_PATTERN = "/scratch/general/nfs1/u0977428/Training/jpg/IN*.jpg"
+# Glob pattern for target images
+TARGET_IMG_PATTERN = "/scratch/general/nfs1/u0977428/Training/jpg/OUT*.jpg"
 
 # Adjust these parameters to affect plotting results
-CMAP_IN = 'gray' if CHANNELS_INPUT == 1 else None # colormap for input images
-CMAP_OUT = 'inferno' if CHANNELS_OUTPUT == 1 else None # colormap for output images
-PLOTTING_INTERPOLATION = lambda ch: 'nearest' if ch == 1 else 'bilinear' # interpolation for plotting images
-CBAR = True # Whether to show the colorbar
-CBAR_MIN = lambda x: x.min() # Function to calculate the colorbar minimum. Can be set to None for automatic calculation, or a number for manual setting
-CBAR_MAX = lambda x: x.max() # Function to calculate the colorbar maximum Can be set to None for automatic calculation, or a number for manual setting
+CMAP_IN = 'gray' if CHANNELS_INPUT == 1 else None  # colormap for input images
+CMAP_OUT = 'inferno' if CHANNELS_OUTPUT == 1 else None  # colormap for output images
+# interpolation for plotting images
+def PLOTTING_INTERPOLATION(ch): return 'nearest' if ch == 1 else 'bilinear'
+CBAR = True  # Whether to show the colorbar
+# Function to calculate the colorbar minimum. Can be set to None for automatic calculation, or a number for manual setting
+def CBAR_MIN(x): return x.min()
+# Function to calculate the colorbar maximum Can be set to None for automatic calculation, or a number for manual setting
+def CBAR_MAX(x): return x.max()
 
 
 # Adjust these parameters to affect model saving and loading
-EXAMPLES_DIR="/scratch/general/nfs1/u0977428/Training/ml_models/unet/results" # Where to save example images
-LOAD_MODEL = False # set to True if you want to load a pre-trained model
-SAVE_MODEL = True # set to True to save the model
-CHECKPOINT = "unet.pth.tar" # Saved modle filename
-
-
+# Where to save example images
+EXAMPLES_DIR = "/scratch/general/nfs1/u0977428/Training/ml_models/unet/results"
+LOAD_MODEL = False  # set to True if you want to load a pre-trained model
+SAVE_MODEL = True  # set to True to save the model
+CHECKPOINT = "unet.pth.tar"  # Saved modle filename
 
 
 # Augmentation pipeline
@@ -46,21 +68,23 @@ CHECKPOINT = "unet.pth.tar" # Saved modle filename
 transform_both = A.Compose(
     [
         # A.Resize(width=IMAGE_SIZE, height=IMAGE_SIZE),
-         A.Normalize(
-             mean=[0., 0., 0.], std=[1., 1., 1.], max_pixel_value=255.0,
-         ),
-         A.LongestMaxSize(max_size=IMAGE_SIZE, always_apply=True), # Scale the image to the maximum size
+        A.Normalize(
+            mean=[0., 0., 0.], std=[1., 1., 1.], max_pixel_value=255.0,
+        ),
+        # Scale the image to the maximum size
+        A.LongestMaxSize(max_size=IMAGE_SIZE, always_apply=True),
         # A.Rotate(limit=35, p=0.5),
         # A.HorizontalFlip(p=0.5),
         # A.VerticalFlip(p=0.1),
-        
+
         # Keep ToTensor as the last transformation
         # It converts the numpy images to torch tensors
         # Normalizing the images to be in the range [0, 1]
         # and transposing the channels from HWC to CHW format
         ToTensorV2(),
     ],
-    additional_targets={'target': 'image'} # required if target is an image. Could also be set to mask, or other supported key
+    # required if target is an image. Could also be set to mask, or other supported key
+    additional_targets={'target': 'image'}
 )
 
 # This pipeline is applied to the input images only
@@ -75,11 +99,9 @@ transform_input = A.Compose(
 )
 
 # This pipeline is applied to the target images only
-# You can add transformations to the target images if you want by following the same pattern. 
+# You can add transformations to the target images if you want by following the same pattern.
 # Just make sure not to add ToTensorV2() to the input transformations
 # This is because ToTensorV2() should be the last transformation and it should be applied to both the input and target images
-transform_target = [] # No transformations for the target images by default
+transform_target = []  # No transformations for the target images by default
 
-# Include any optional configs from the optional_configs.py file here
-from optional_configs import * # This will import all the variables from the optional_configs.py file
-
+# Customize the configurations by importing the custom_configs.py file

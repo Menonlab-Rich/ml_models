@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from torch import tensor
 from glob import glob
 import logging
+import warnings
 
 
 class Dataset(Dataset):
@@ -59,9 +60,9 @@ class Dataset(Dataset):
             "input_reader": lambda x, channels: np.array(Image.open(x).convert(
                 "RGB" if channels == 3 else "L")),
             "target_reader": lambda x, channels: np.array(Image.open(x).convert(
-                "RGB" if channels == 3 else "L")), 
+                "RGB" if channels == 3 else "L")),
             "transform_keys": {"input": "image", "target": "image", "both": ("image", "target")}
-            }
+        }
         # Store the arguments as attributes of the defaults object
         for key, value in kwargs.items():
             defaults[key] = value
@@ -81,42 +82,56 @@ class Dataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, idx):
-       # Open the image and convert it to RGB
         input_channels, target_channels = self.channels
         input_ = self.input_reader(self.images[idx], input_channels)
         target_ = self.target_reader(self.targets[idx], target_channels)
 
-        # If transform is specified, apply the transformations to the images
         if self.transform:
-            input_only = self.transform_keys["input"]
-            target_only = self.transform_keys["target"]
-            both = self.transform_keys["both"]
-            
-            # Apply the transformations to the images one by one
-            # This is done to support different transformations for the input and target images
-            # By converting the list to an iterator, we can use the next() function to apply the transformations
-            # Without having to separately check each transformation
-            it = iter(self.transform)
-            # Apply the first transformation to the input only
-            if next(it):
-                augmentations = self.transform[0](**{input_only: input_})
-                input_ = augmentations["image"]
-            # Apply the second transformation to the target only
-            if next(it):
-                augmentations = self.transform[1](**{target_only: target_})
-                target_ = augmentations["image"]
-            
-            # Apply the third transformation to both the image and the target
-            if next(it):
-                augmentations = self.transform[2](**{both[0]: input_, both[1]: target_})
-                input_ = augmentations[both[0]]
-                target_ = augmentations[both[1]]
+            # Check if the transform is a list (legacy behavior)
+            if isinstance(self.transform, list):
+                warnings.warn(
+                    "Using a list for transformations is deprecated. Use a dictionary with keys 'input', 'target', and 'both' for clearer and more robust transformation application.",
+                    DeprecationWarning)
 
-        # Transpose the images to channel-first format if necessary
+                it = iter(self.transform)
+                try:
+                    # Apply the first transformation to the input only
+                    if next(it):
+                        augmentations = self.transform[0](image=input_)
+                        input_ = augmentations['image']
+                    # Apply the second transformation to the target only
+                    if next(it):
+                        augmentations = self.transform[1](image=target_)
+                        target_ = augmentations['image']
+                    # Apply the third transformation to both the input and the target
+                    if next(it):
+                        augmentations = self.transform[2](
+                            image=input_, target=target_)
+                        input_ = augmentations['image']
+                        target_ = augmentations['target']
+                except StopIteration:
+                    pass
+            # New recommended behavior using a dictionary
+            elif isinstance(self.transform, dict):
+                if 'input' in self.transform:
+                    augmented = self.transform['input'](image=input_)
+                    input_ = augmented['image']
+                if 'target' in self.transform:
+                    augmented = self.transform['target'](image=target_)
+                    target_ = augmented['image']
+                if 'both' in self.transform:
+                    augmented = self.transform['both'](
+                        image=input_, target=target_)
+                    input_ = augmented['image']
+                    target_ = augmented['target']
+            else:
+                raise TypeError(
+                    "Transform must be either a list (deprecated) or a dictionary.")
 
         # Log the shapes of the images
         self.logger.debug("Input shape: {}".format(input_.shape))
         self.logger.debug("Target shape: {}".format(target_.shape))
-        
-        # Return the images as tensors
-        return tensor(input_).float(), tensor(target_).float()
+
+        # Ensure input and target are tensors (considering they might already be tensors after transformation)
+        input_tensor, target_tensor = map(tensor, (input_, target_))
+        return input_tensor.float(), target_tensor.float()
