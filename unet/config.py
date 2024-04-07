@@ -1,4 +1,3 @@
-from ml_models.unet.custom_configs import *
 import torch
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
