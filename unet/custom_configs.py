@@ -7,7 +7,9 @@ Leave this file empty unless you know better.
 
 import numpy as np
 import torch
+from PIL import Image
 from torch import nn
+
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -21,6 +23,16 @@ def TARGET_READER(path: str, _: int):
 
     return target_mapped
 
+def INPUT_READER(x, channels):
+    img = Image.open(x)
+    if img.mode in ["I", "I;16", "I;16B", "I;16L"]:  # For 16-bit grayscale images
+        if channels == 3:  # If expecting RGB output, convert accordingly
+            img = img.convert("RGB")
+        else:  # Keep as is for grayscale
+            img = img.convert("I")
+    elif img.mode not in ["RGB", "L"]:  # If not standard 8-bit modes, convert
+        img = img.convert("RGB" if channels == 3 else "L")
+    return np.array(img)
 
 # Set the task to segmentation for utility functions which depend on this value
 TASK = 'segmentation'
@@ -77,38 +89,76 @@ def weights(
 
 # Set the loss function to CrossEntropyLoss for segmentation tasks
 def LOSS_FN(x, y):
+    y = y.squeeze(1) # Remove the channel dimension
     return nn.CrossEntropyLoss(weight=weights(3422, 1744, 1000))(x, y)
 
 CBAR = False
 
 import albumentations as A
+from albumentations import BasicTransform
 from albumentations.pytorch.transforms import ToTensorV2
 import cv2
+
+
+class ToTensorWithDtype(BasicTransform):
+    """Convert image, mask, or any additional targets to `torch.Tensor` and allows casting to specified dtype."""
+
+    def __init__(self, always_apply=True, dtype=torch.float):
+        super(ToTensorWithDtype, self).__init__(always_apply, p=1)
+        self.dtype = dtype
+
+    def __call__(self, force_apply=False, **kwargs):
+        for key, item in kwargs.items():
+            if item is not None:
+                kwargs[key] = torch.tensor(item, dtype=self.dtype)
+        return kwargs
+
+    def get_transform_init_args_names(self):
+        return ("dtype",)
+
+    def get_params(self):
+        return {"dtype": self.dtype}
+
+    def get_params_dependent_on_targets(self, params):
+        # Here you can implement logic to dynamically choose dtype based on target types, if necessary.
+        return params
+
+    @property
+    def targets_as_params(self):
+        # Define which targets are used to compute the parameters
+        return []
+        
+        
+
+    def get_transform_init_args_names(self):
+        return ()
 
 IMAGE_SIZE = 256  # Desired size. Adjust as needed.
 
 transform_both = None
-tranform_input = A.Compose(
+transform_input = A.Compose(
     [
-        # Resize images to a fixed size. Use interpolation='nearest' for masks in additional_targets.
-        A.LongestMaxSize(max_size=IMAGE_SIZE, always_apply=True, interpolation=cv2.INTER_LINEAR),
         # Normalize the image but not the mask
-        A.Normalize(mean=[0., 0., 0.], std=[1., 1., 1.], max_pixel_value=255.0),
-        ToTensorV2(),
+        A.Normalize(mean=[0.], std=[1.], max_pixel_value=2**16 - 1, always_apply=True),
+        ToTensorWithDtype(dtype=torch.float64), # 16-bit images
     ],
 )
 
 transform_target = A.Compose(
     [
-        # Resize images to a fixed size. Use interpolation='nearest' for masks in additional_targets.
-        A.LongestMaxSize(max_size=IMAGE_SIZE, always_apply=True, interpolation=cv2.INTER_NEAREST),
-        ToTensorV2(),
+        ToTensorWithDtype(dtype=torch.long), # 8-bit masks
     ],
 )
-
 
 # Adjust these parmaters to affect the training data
 # Glob pattern for training images
 TRAIN_IMG_PATTERN = "/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/*.tif"
 # Glob pattern for target images
 TARGET_IMG_PATTERN = "/scratch/general/nfs1/u0977428/transfer/preprocess/masks/*.npz"
+
+CHANNELS_INPUT = 1  # Grayscale
+CHANNELS_OUTPUT = 3  # 3 channels for the mask
+
+DATASET_TO_FLOAT = False  # Handle type conversion independently in the transforms
+
+SKIP_CHANNEL_EXPANSION = True  # Skip adding a channel dimension if not present

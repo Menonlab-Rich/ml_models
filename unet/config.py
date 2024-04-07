@@ -3,6 +3,8 @@ import torch
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import torch.nn as nn
+import importlib.util
+import os
 
 '''
 UNet configurations
@@ -21,6 +23,11 @@ TARGET_READER = None
 INPUT_READER = None
 # Task to perform. Options are 'classification', 'segmentation', 'translation
 TASK = 'translation'
+# Whether to convert the dataset to float. The default behavior is to convert the dataset to float. 
+# If you disable this, you will have to convert the dataset to the appropriate data type elsewhere in the pipeline
+# We suggest a custom INPUT_READER or TARGET_READER function for this purpose or custom transformations
+# Generally, it is best to leave this as True
+DATASET_TO_FLOAT=True
 
 # Adjust these parameters to affect the training process.
 LEARNING_RATE = 2e-4
@@ -104,4 +111,14 @@ transform_input = A.Compose(
 # This is because ToTensorV2() should be the last transformation and it should be applied to both the input and target images
 transform_target = []  # No transformations for the target images by default
 
+# Path to the custom_configs.py file
+custom_config_path = (lambda: os.path.join(os.path.dirname(__file__), "custom_configs.py"))()
 # Customize the configurations by importing the custom_configs.py file
+if os.path.isfile(custom_config_path):
+    spec = importlib.util.spec_from_file_location("custom_config", custom_config_path)
+    custom_config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(custom_config)
+    
+    # Update the globals() dictionary with the settings from custom_config
+    # This effectively overwrites any existing settings with those from custom_config
+    globals().update({k: v for k, v in vars(custom_config).items() if not k.startswith("__")})
