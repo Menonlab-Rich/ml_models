@@ -87,8 +87,8 @@ class Dataset(Dataset):
         self._defaults = defaults # save the defaults so we can update them later if needed
 
     def _load_data(self, input_globbing_pattern, target_globbing_pattern):
-        inputs = glob(input_globbing_pattern, recursive=True)
-        targets = glob(target_globbing_pattern, recursive=True)
+        inputs = sorted(glob(input_globbing_pattern, recursive=True))
+        targets = sorted(glob(target_globbing_pattern, recursive=True))
         assert len(inputs) == len(
             targets), "Number of images and targets must be equal"
         return inputs, targets
