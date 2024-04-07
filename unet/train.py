@@ -68,11 +68,15 @@ def main(predict_only=False):
         return
     for epoch in range(config.NUM_EPOCHS):
         train(train_loader, model, opt, config.LOSS_FN, scaler)
-        utils.save_examples(model, val_loader, epoch,
-                            config.EXAMPLES_DIR, config.DEVICE)
-        utils.gen_evaluation_report(
-            model, val_loader, config.DEVICE, config.TASK, multi_channel=True
-            if config.CHANNELS_OUTPUT > 1 else False)
+        try:
+            utils.save_examples(model, val_loader, epoch,
+                                config.EXAMPLES_DIR, config.DEVICE)
+            utils.gen_evaluation_report(
+                model, val_loader, config.DEVICE, config.TASK, multi_channel=True
+                if config.CHANNELS_OUTPUT > 1 else False)
+        except Exception as e:
+            logging.error(f"Could not save examples: {e}")
+            # continue training even if examples could not be saved
         if config.SAVE_MODEL:
             utils.save_checkpoint(model, opt, filename=config.CHECKPOINT)
 
