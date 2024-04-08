@@ -275,7 +275,8 @@ def gen_evaluation_report(model, val_loader, device, task, multi_channel=False):
         print(f"Average SSIM: {np.mean(ssim_scores):.4f}")
 
 
-def save_examples(model, val_loader, epoch, folder, device):
+def save_examples(
+        model, val_loader, epoch, folder, device, x_channels=3, y_channels=3):
     if not hasattr(save_examples, "fixed_samples"):
         accumulated_x, accumulated_y = [], []
         for batch in val_loader:
@@ -288,16 +289,27 @@ def save_examples(model, val_loader, epoch, folder, device):
         if max(
                 [x.shape for x in accumulated_x]) != min(
                 [x.shape for x in accumulated_x]):
-            warning_message = "Shapes of the tensors are not the same." + \
+            warning_message = "Shapes of the input tensors are not the same." + \
                 "This may indicate a problem with the data, data loader, or the model." + \
                 "The tensors will be padded to the maximum shape, but we recommend investigating the issue."
             logging.warning(warning_message)
         max_shape = max([x.shape for x in accumulated_x])
+        h, w = max_shape[-2], max_shape[-1]
+        # Pad the tensors to the same shape. Check x_channels and y_channels to determine the number of channels
         accumulated_x = [
             F.pad(
-                x,
-                (0, 0, 0, 0, 0, max_shape[2] - x.shape[2],
-                 0, max_shape[1] - x.shape[1]))]
+                tensor,
+                (0, w - tensor.size(2),
+                 0, h - tensor.size(1)),
+                "constant", 0) for tensor in accumulated_x]
+        # Repeat the process for y:
+        if max(
+                [y.shape for y in accumulated_y]) != min(
+                [y.shape for y in accumulated_y]):
+            warning_message = "Shapes of the target tensors are not the same." + \
+                "This may indicate a problem with the data, data loader, or the model." + \
+                "The tensors will be padded to the maximum shape, but we recommend investigating the issue."
+            logging.warning(warning_message)
         # Concatenate the tensors
         x = torch.cat(accumulated_x, dim=0)[:6]
         y = torch.cat(accumulated_y, dim=0)[:6]
