@@ -38,18 +38,26 @@ def main(predict_only=False):
                  out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
 
     opt = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
-    ds = Dataset(config.TRAIN_IMG_PATTERN, config.TARGET_IMG_PATTERN,
-                 transforms=(config.transform_input, config.transform_target,
-                             config.transform_both),
-                 channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT),
-                 to_float=config.DATASET_TO_FLOAT
-        )
+    if config.LOAD_DST:
+        training_set = torch.load(config.DST_SAVE_DIR + "/train.pth")
+        validation_set = torch.load(config.DST_SAVE_DIR + "/val.pth")
+    else:
+        ds = Dataset(config.TRAIN_IMG_PATTERN, config.TARGET_IMG_PATTERN,
+                    transforms=(config.transform_input, config.transform_target,
+                                config.transform_both),
+                    channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT),
+                    to_float=config.DATASET_TO_FLOAT
+            )
+        training_set, validation_set = utils.split_dataset(ds)
+    
+    # Set the input and target readers if required
+    # This has to happen after the dataset is created
     if config.INPUT_READER:
         ds.set_args(input_reader=config.INPUT_READER,)
     if config.TARGET_READER:
         ds.set_args(target_reader=config.TARGET_READER)
-    # split the dataset into train and validation sets with 80% and 20% of the data respectively
-    training_set, validation_set = utils.split_dataset(ds)
+    
+    
     train_loader = DataLoader(training_set, shuffle=True)
     val_loader = DataLoader(validation_set, shuffle=False)
 
