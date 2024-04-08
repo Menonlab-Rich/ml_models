@@ -433,7 +433,7 @@ def check_accuracy(loader, model, device="cuda", return_outputs=0):
     print(f"Got {num_correct} / {len(loader)} correct with avg coeff {np.mean(coeffs)} and loss {np.mean(losses)}")
 
 
-def split_dataset(dataset, split=0.8):
+def split_dataset(dataset, split=0.8, save=False):
     '''
     Split the dataset into train and validation sets
 
@@ -452,11 +452,17 @@ def split_dataset(dataset, split=0.8):
 
     assert split > 0 and split < 1, "split must be in the range (0, 1)"
 
-    return torch.utils.data.random_split(
+    sets = torch.utils.data.random_split(
         dataset,
         [int(len(dataset) * split), len(dataset) - int(len(dataset) * split)]
     )
+    
+    # save the datasets to a file
+    if save:
+        torch.save(sets[0], 'train_dataset.pth')
+        torch.save(sets[1], 'val_dataset.pth')
 
+    return sets
 
 class LoggerOrDefault():
     '''
