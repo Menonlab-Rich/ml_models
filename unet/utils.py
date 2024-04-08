@@ -285,8 +285,19 @@ def save_examples(model, val_loader, epoch, folder, device):
             if sum([x.shape[0] for x in accumulated_x]) >= 6:
                 break
         # Pad every tensor to the same dimension
+        if max(
+                [x.shape for x in accumulated_x]) != min(
+                [x.shape for x in accumulated_x]):
+            warning_message = "Shapes of the tensors are not the same." + \
+                "This may indicate a problem with the data, data loader, or the model." + \
+                "The tensors will be padded to the maximum shape, but we recommend investigating the issue."
+            logging.warning(warning_message)
         max_shape = max([x.shape for x in accumulated_x])
-        accumulated_x = [F.pad(x, (0, 0, 0, 0, 0, max_shape[2] - x.shape[2], 0, max_shape[1] - x.shape[1]))]
+        accumulated_x = [
+            F.pad(
+                x,
+                (0, 0, 0, 0, 0, max_shape[2] - x.shape[2],
+                 0, max_shape[1] - x.shape[1]))]
         # Concatenate the tensors
         x = torch.cat(accumulated_x, dim=0)[:6]
         y = torch.cat(accumulated_y, dim=0)[:6]
@@ -460,13 +471,14 @@ def split_dataset(dataset, split=0.8, save=False):
         dataset,
         [int(len(dataset) * split), len(dataset) - int(len(dataset) * split)]
     )
-    
+
     # save the datasets to a file
     if save:
         torch.save(sets[0], 'train.pth')
         torch.save(sets[1], 'val.pth')
 
     return sets
+
 
 class LoggerOrDefault():
     '''
