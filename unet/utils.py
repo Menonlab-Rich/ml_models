@@ -284,6 +284,10 @@ def save_examples(model, val_loader, epoch, folder, device):
             accumulated_y.append(batch_y)
             if sum([x.shape[0] for x in accumulated_x]) >= 6:
                 break
+        # Pad every tensor to the same dimension
+        max_shape = max([x.shape for x in accumulated_x])
+        accumulated_x = [F.pad(x, (0, 0, 0, 0, 0, max_shape[2] - x.shape[2], 0, max_shape[1] - x.shape[1]))]
+        # Concatenate the tensors
         x = torch.cat(accumulated_x, dim=0)[:6]
         y = torch.cat(accumulated_y, dim=0)[:6]
         save_examples.fixed_samples = (x, y)
@@ -459,8 +463,8 @@ def split_dataset(dataset, split=0.8, save=False):
     
     # save the datasets to a file
     if save:
-        torch.save(sets[0], 'train_dataset.pth')
-        torch.save(sets[1], 'val_dataset.pth')
+        torch.save(sets[0], 'train.pth')
+        torch.save(sets[1], 'val.pth')
 
     return sets
 
