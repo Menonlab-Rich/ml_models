@@ -284,6 +284,21 @@ def save_examples(model, val_loader, epoch, folder, device):
             accumulated_y.append(batch_y)
             if sum([x.shape[0] for x in accumulated_x]) >= 6:
                 break
+        # Pad every tensor to the same dimension
+        if max(
+                [x.shape for x in accumulated_x]) != min(
+                [x.shape for x in accumulated_x]):
+            warning_message = "Shapes of the tensors are not the same." + \
+                "This may indicate a problem with the data, data loader, or the model." + \
+                "The tensors will be padded to the maximum shape, but we recommend investigating the issue."
+            logging.warning(warning_message)
+        max_shape = max([x.shape for x in accumulated_x])
+        accumulated_x = [
+            F.pad(
+                x,
+                (0, 0, 0, 0, 0, max_shape[2] - x.shape[2],
+                 0, max_shape[1] - x.shape[1]))]
+        # Concatenate the tensors
         x = torch.cat(accumulated_x, dim=0)[:6]
         y = torch.cat(accumulated_y, dim=0)[:6]
         save_examples.fixed_samples = (x, y)
@@ -433,7 +448,7 @@ def check_accuracy(loader, model, device="cuda", return_outputs=0):
     print(f"Got {num_correct} / {len(loader)} correct with avg coeff {np.mean(coeffs)} and loss {np.mean(losses)}")
 
 
-def split_dataset(dataset, split=0.8):
+def split_dataset(dataset, split=0.8, save=False):
     '''
     Split the dataset into train and validation sets
 
@@ -452,10 +467,17 @@ def split_dataset(dataset, split=0.8):
 
     assert split > 0 and split < 1, "split must be in the range (0, 1)"
 
-    return torch.utils.data.random_split(
+    sets = torch.utils.data.random_split(
         dataset,
         [int(len(dataset) * split), len(dataset) - int(len(dataset) * split)]
     )
+
+    # save the datasets to a file
+    if save:
+        torch.save(sets[0], 'train.pth')
+        torch.save(sets[1], 'val.pth')
+
+    return sets
 
 
 class LoggerOrDefault():

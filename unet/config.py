@@ -66,6 +66,9 @@ EXAMPLES_DIR = "/scratch/general/nfs1/u0977428/Training/ml_models/unet/results"
 LOAD_MODEL = False  # set to True if you want to load a pre-trained model
 SAVE_MODEL = True  # set to True to save the model
 CHECKPOINT = "unet.pth.tar"  # Saved modle filename
+SAVE_DST = False  # set to True to save the training and validation datasets (useful for debugging)
+LOAD_DST = False  # set to True to load the training and validation datasets (useful for debugging)
+DST_SAVE_DIR = "/scratch/general/nfs1/u0977428/Training/ml_models/unet/datasets"  # directory to save the datasets
 
 
 # Augmentation pipeline
