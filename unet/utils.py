@@ -153,51 +153,44 @@ def get_color_range(img, min_fn, max_fn):
     return vmin, vmax
 
 
+
 def logits_to_rgb(logits, color_map=None):
     """
     Converts logits from a model to an RGB image based on a provided color map.
-
-    Parameters:
-    - logits: torch.Tensor
-        The raw output logits from the model. Shape: [N, C, H, W].
-    - color_map: dict
-        A dictionary mapping class indices to RGB colors.
-
-    Returns:
-    - torch.Tensor: An RGB image. Shape: [N, H, W, 3].
     """
     # Apply softmax to get probabilities and then argmax to get predicted class indices
     probs = torch.nn.functional.softmax(logits, dim=1)
     predictions = torch.argmax(probs, dim=1)
+    
     if color_map is None:
         color_map = {
             0: [0, 0, 0],  # Background
             1: [255, 0, 0],  # Class 1
             2: [0, 255, 0],  # Class 2
         }
+    
     # Prepare an empty tensor for the RGB image
     rgb_image = torch.zeros(
         predictions.size(0),
-        3,
         predictions.size(1),
         predictions.size(2),
+        3,
         dtype=torch.uint8, device=logits.device)
 
     for class_index, color in color_map.items():
-        mask = predictions == class_index
-        for c in range(3):  # RGB channels
-            rgb_image[mask, c] = color[c]
+        mask = (predictions == class_index).unsqueeze(-1)  # Add channel dimension for broadcasting
+        color_tensor = torch.tensor(color, device=logits.device, dtype=torch.uint8).view(1, 1, 1, 3)
+        rgb_image[mask] = color_tensor
 
-    # Moving the channel to the last dimension to match [N, H, W, 3] for plotting
-    return rgb_image  # preparing for plotting happens later
+    return rgb_image # Shape: [N, H, W, 3]
 
 
-def map_to_rgb(y: np.ndarray, color_map: dict = None) -> np.ndarray:
+def map_to_rgb(y, color_map=None):
     """
     Maps class indices to RGB colors based on a provided color map.
-
+    
     Parameters:
-    - y: np.ndarray
+    - y: np.ndarray or torch.Tensor
         The class indices. Shape: [N, H, W].
     - color_map: dict
         A dictionary mapping class indices to RGB colors.
@@ -205,20 +198,25 @@ def map_to_rgb(y: np.ndarray, color_map: dict = None) -> np.ndarray:
     Returns:
     - np.ndarray: An RGB image. Shape: [N, H, W, 3].
     """
-
+    
     if color_map is None:
         color_map = {
             0: [0, 0, 0],  # Background
             1: [255, 0, 0],  # Class 1
             2: [0, 255, 0],  # Class 2
         }
-    # Prepare an empty tensor for the RGB image
-    y = y.squeeze(1)  # Remove the channel dimension
+    
+    # Check if y is a PyTorch tensor and move to CPU and convert to numpy if necessary
+    if 'torch' in str(type(y)):
+        y = y.cpu().numpy()
+    
+    # Prepare an empty array for the RGB image
     rgb_image = np.zeros(y.shape + (3,), dtype=np.uint8)
+    
     for class_index, color in color_map.items():
         mask = y == class_index
         for c in range(3):  # RGB channels
-            rgb_image[mask, c] = color[c]
+            rgb_image[..., c][mask] = color[c]
 
     return rgb_image
 
