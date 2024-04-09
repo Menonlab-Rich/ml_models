@@ -5,6 +5,10 @@ They are not usually required for the model to work, but can be used in special 
 Leave this file empty unless you know better.
 '''
 
+import cv2
+from albumentations.pytorch.transforms import ToTensorV2
+from albumentations import BasicTransform
+import albumentations as A
 import numpy as np
 import torch
 from PIL import Image
@@ -23,9 +27,11 @@ def TARGET_READER(path: str, _: int):
 
     return target_mapped
 
+
 def INPUT_READER(x, channels):
     img = Image.open(x)
-    if img.mode in ["I", "I;16", "I;16B", "I;16L"]:  # For 16-bit grayscale images
+    if img.mode in [
+            "I", "I;16", "I;16B", "I;16L"]:  # For 16-bit grayscale images
         if channels == 3:  # If expecting RGB output, convert accordingly
             img = img.convert("RGB")
         else:  # Keep as is for grayscale
@@ -33,6 +39,7 @@ def INPUT_READER(x, channels):
     elif img.mode not in ["RGB", "L"]:  # If not standard 8-bit modes, convert
         img = img.convert("RGB" if channels == 3 else "L")
     return np.array(img)
+
 
 # Set the task to segmentation for utility functions which depend on this value
 TASK = 'segmentation'
@@ -89,15 +96,11 @@ def weights(
 
 # Set the loss function to CrossEntropyLoss for segmentation tasks
 def LOSS_FN(x, y):
-    y = y.squeeze(1) # Remove the channel dimension
-    return nn.CrossEntropyLoss(weight=weights(3422, 1744, 1000))(x, y)
+    y = y.squeeze(1)  # Remove the channel dimension
+    return nn.CrossEntropyLoss()(x, y)
+
 
 CBAR = False
-
-import albumentations as A
-from albumentations import BasicTransform
-from albumentations.pytorch.transforms import ToTensorV2
-import cv2
 
 
 class ToTensorWithDtype(BasicTransform):
@@ -127,11 +130,10 @@ class ToTensorWithDtype(BasicTransform):
     def targets_as_params(self):
         # Define which targets are used to compute the parameters
         return []
-        
-        
 
     def get_transform_init_args_names(self):
         return ()
+
 
 IMAGE_SIZE = 256  # Desired size. Adjust as needed.
 
@@ -139,14 +141,15 @@ transform_both = None
 transform_input = A.Compose(
     [
         # Normalize the image but not the mask
-        A.Normalize(mean=[0.], std=[1.], max_pixel_value=2**16 - 1, always_apply=True),
-        ToTensorWithDtype(dtype=torch.float64), # 16-bit images
+        A.Normalize(mean=[0.], std=[1.], max_pixel_value=2 **
+                    16 - 1, always_apply=True),
+        ToTensorWithDtype(dtype=torch.float64),  # 16-bit images
     ],
 )
 
 transform_target = A.Compose(
     [
-        ToTensorWithDtype(dtype=torch.long), # 8-bit masks
+        ToTensorWithDtype(dtype=torch.long),  # 8-bit masks
     ],
 )
 
@@ -161,3 +164,11 @@ CHANNELS_OUTPUT = 3  # 3 channels for the mask
 DATASET_TO_FLOAT = False  # Handle type conversion independently in the transforms
 
 SKIP_CHANNEL_EXPANSION = True  # Skip adding a channel dimension if not present
+
+LOAD_MODEL = True  # set to True if you want to load a pre-trained model
+CHECKPOINT = r"D:\CZI_scope\code\ml_models\unet\unet.pth.tar"
+EXAMPLES_DIR = r'D:\CZI_scope\code\ml_models\unet\results'
+
+
+def ALIGNMENT_FN(x, y):
+    return x == '.'.join(y.split('.')[:-1]) if 'composite' not in x else x.split('.')[0] == y.split('.')[0] 

@@ -90,4 +90,4 @@ def main(predict_only=False):
 
 
 if __name__ == "__main__":
-    main(predict_only=False)
+    main(predict_only=True)

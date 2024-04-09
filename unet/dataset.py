@@ -5,6 +5,7 @@ from torch import tensor
 from glob import glob
 import logging
 import warnings
+import config
 
 
 class Dataset(Dataset):
@@ -39,8 +40,17 @@ class Dataset(Dataset):
         '''
         # Store the paths to the images
         self._defaults = None
+        self._filenames = {}
+        validate_alignment = False
+        alginment_fn = None
+        if getattr(config, 'VALIDATE_ALIGNMENT', False):
+            validate_alignment = True
+        if getattr(config, 'ALIGNMENT_FN', None):
+            validate_alignment = True
+            alignment_fn = config.ALIGNMENT_FN
         self.images, self.targets = self._load_data(
-            input_globbing_pattern, target_globbing_pattern)
+            input_globbing_pattern, target_globbing_pattern, validate_alignment,
+            alignment_fn)
         # Store the transformations to be applied to the images
         self.transform = transforms
         # Parse the arguments passed to the constructor
@@ -55,7 +65,7 @@ class Dataset(Dataset):
         Set the argument for the Dataset object
         '''
         self._parse_args(kwargs)
-        
+
     def _parse_args(self, kwargs):
         '''
         Parse the arguments passed to the constructor
@@ -64,7 +74,7 @@ class Dataset(Dataset):
             # Update the defaults with the new arguments
             self._defaults.update(kwargs)
             kwargs = self._defaults
-    
+
         defaults = {
             "target_input_combined": False, "logger": logging.getLogger(
                 __name__),
@@ -74,7 +84,9 @@ class Dataset(Dataset):
             "target_reader": lambda x, channels: np.array(Image.open(x).convert(
                 "RGB" if channels == 3 else "L")),
             "transform_keys": {"input": "image", "target": "image", "both": ("image", "target")},
-            "to_float": True, # Convert the images to float by default
+            "to_float": True,  # Convert the images to float by default
+            "validate_alignment": False,
+            "alignment_fn": None
         }
         # Store the arguments as attributes of the defaults object
         for key, value in kwargs.items():
@@ -83,14 +95,24 @@ class Dataset(Dataset):
         # Store the attributes of the defaults object as attributes of the Dataset object
         for key, value in defaults.items():
             setattr(self, key, value)
-        
-        self._defaults = defaults # save the defaults so we can update them later if needed
 
-    def _load_data(self, input_globbing_pattern, target_globbing_pattern):
+        self._defaults = defaults  # save the defaults so we can update them later if needed
+
+    def _load_data(
+            self, input_globbing_pattern, target_globbing_pattern,
+            validate_alignment=False, alignment_fn=None):
         inputs = sorted(glob(input_globbing_pattern, recursive=True))
         targets = sorted(glob(target_globbing_pattern, recursive=True))
         assert len(inputs) == len(
             targets), "Number of images and targets must be equal"
+        if validate_alignment:
+            from os import path
+            if not alignment_fn:
+                alignment_fn = lambda x, y: x == y # default behavior is to check if the filenames are the same
+            for i, t in zip(inputs, targets):
+                name_i = path.basename(i)
+                name_t = path.basename(t)
+                assert alignment_fn(name_i, name_t), f"Input and target images must be aligned. Found {name_i} and {name_t}"
         return inputs, targets
 
     def __len__(self):
@@ -100,10 +122,11 @@ class Dataset(Dataset):
         input_channels, target_channels = self.channels
         input_ = self.input_reader(self.images[idx], input_channels)
         target_ = self.target_reader(self.targets[idx], target_channels)
-
         if self.transform:
             # Check if the transform is a list (legacy behavior)
-            if isinstance(self.transform, list) or isinstance(self.transform, tuple):
+            if isinstance(
+                    self.transform, list) or isinstance(
+                    self.transform, tuple):
                 warnings.warn(
                     "Using a list for transformations is deprecated. Use a dictionary with keys 'input', 'target', and 'both' for clearer and more robust transformation application.",
                     DeprecationWarning)
@@ -152,6 +175,11 @@ class Dataset(Dataset):
         if self.to_float:
             input_tensor = input_tensor.float()
             target_tensor = target_tensor.float()
-        
+        # Store a mapping from the tensor to the filename
+        # For plotting purposes
+        self._filenames[id(input_tensor)] = self.images[idx]
+        self._filenames[id(target_tensor)] = self.targets[idx]
         return input_tensor, target_tensor
-        
+    
+    def get_filenames(self, tensor, default=None):
+        return self._filenames.get(id(tensor), default)
