@@ -1,3 +1,4 @@
+from torchvision.transforms.functional import pad as F_pad
 import config
 import torch
 import logging
@@ -24,7 +25,7 @@ def generate_model_prediction(
     output_path: str
         Path to save the predictions to
     resize: float | tuple, Default: 1 (no resize)
-        The size to resize the image to before predicting. 
+        The size to resize the image to before predicting.
         This should match the size the model was trained on
             If a float, the image is resized by the factor
             If a tuple, the image is resized to the specified size
@@ -152,7 +153,7 @@ def get_color_range(img, min_fn, max_fn):
     return vmin, vmax
 
 
-def logits_to_rgb(logits, color_map):
+def logits_to_rgb(logits, color_map=None):
     """
     Converts logits from a model to an RGB image based on a provided color map.
 
@@ -168,13 +169,19 @@ def logits_to_rgb(logits, color_map):
     # Apply softmax to get probabilities and then argmax to get predicted class indices
     probs = torch.nn.functional.softmax(logits, dim=1)
     predictions = torch.argmax(probs, dim=1)
-
+    if color_map is None:
+        color_map = {
+            0: [0, 0, 0],  # Background
+            1: [255, 0, 0],  # Class 1
+            2: [0, 255, 0],  # Class 2
+        }
     # Prepare an empty tensor for the RGB image
     rgb_image = torch.zeros(
         predictions.size(0),
+        3,
         predictions.size(1),
         predictions.size(2),
-        3, dtype=torch.uint8, device=logits.device)
+        dtype=torch.uint8, device=logits.device)
 
     for class_index, color in color_map.items():
         mask = predictions == class_index
@@ -182,10 +189,10 @@ def logits_to_rgb(logits, color_map):
             rgb_image[mask, c] = color[c]
 
     # Moving the channel to the last dimension to match [N, H, W, 3] for plotting
-    return rgb_image.permute(0, 2, 3, 1).cpu().numpy()
+    return rgb_image  # preparing for plotting happens later
 
 
-def map_to_rgb(y: np.ndarray, color_map: dict) -> np.ndarray:
+def map_to_rgb(y: np.ndarray, color_map: dict = None) -> np.ndarray:
     """
     Maps class indices to RGB colors based on a provided color map.
 
@@ -198,7 +205,15 @@ def map_to_rgb(y: np.ndarray, color_map: dict) -> np.ndarray:
     Returns:
     - np.ndarray: An RGB image. Shape: [N, H, W, 3].
     """
+
+    if color_map is None:
+        color_map = {
+            0: [0, 0, 0],  # Background
+            1: [255, 0, 0],  # Class 1
+            2: [0, 255, 0],  # Class 2
+        }
     # Prepare an empty tensor for the RGB image
+    y = y.squeeze(1)  # Remove the channel dimension
     rgb_image = np.zeros(y.shape + (3,), dtype=np.uint8)
     for class_index, color in color_map.items():
         mask = y == class_index
@@ -276,14 +291,14 @@ def gen_evaluation_report(model, val_loader, device, task, multi_channel=False):
 
 
 def save_examples(
-        model, val_loader, epoch, folder, device, x_channels=3, y_channels=3):
+        model, val_loader, epoch, folder, device, task=config.TASK, num_examples=3):
     if not hasattr(save_examples, "fixed_samples"):
         accumulated_x, accumulated_y = [], []
         for batch in val_loader:
             batch_x, batch_y = batch[0].to(device), batch[1].to(device)
             accumulated_x.append(batch_x)
             accumulated_y.append(batch_y)
-            if sum([x.shape[0] for x in accumulated_x]) >= 6:
+            if sum([x.shape[0] for x in accumulated_x]) >= num_examples:
                 break
         # Pad every tensor to the same dimension
         if max(
@@ -310,9 +325,19 @@ def save_examples(
                 "This may indicate a problem with the data, data loader, or the model." + \
                 "The tensors will be padded to the maximum shape, but we recommend investigating the issue."
             logging.warning(warning_message)
+            accumulated_y = [
+                F.pad(
+                    tensor,
+                    (0, w - tensor.size(2),
+                     0, h - tensor.size(1)),
+                    "constant", 0) for tensor in accumulated_y
+            ]
         # Concatenate the tensors
-        x = torch.cat(accumulated_x, dim=0)[:6]
-        y = torch.cat(accumulated_y, dim=0)[:6]
+        x = torch.cat(accumulated_x, dim=0)[:num_examples]
+        y = torch.cat(accumulated_y, dim=0)[:num_examples]
+        if task == 'segmentation':
+            x = x.unsqueeze(1)  # Add channel dimension
+            y = y.unsqueeze(1)
         save_examples.fixed_samples = (x, y)
     else:
         x, y = save_examples.fixed_samples
@@ -321,35 +346,46 @@ def save_examples(
     with torch.no_grad():
         y_fake = model(x)
         if config.TASK == 'segmentation':
-            y_fake = logits_to_rgb(y_fake, config.COLOR_MAP)
-            y = map_to_rgb(y, config.COLOR_MAP)
+            y_fake = logits_to_rgb(y_fake)
+            y = map_to_rgb(y)
         # Prepare tensors for plotting
         y_fake = prepare_tensors_for_plotting(*y_fake)
         x = prepare_tensors_for_plotting(*x)
 
-    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+    fig, axs = plt.subplots(3, num_examples, figsize=(15, 10))
     # Calculate dynamic range or use fixed values for color scaling
     vmin, vmax = get_color_range(y_fake, config.CBAR_MIN, config.CBAR_MAX)
-
-    for i in range(6):
+    ds = val_loader.dataset
+    if hasattr(ds, "dataset"):
+        ds = ds.dataset # ds is a subset so we need to get the dataset
+    for i in range(num_examples):
         row = i // 3
-        col = i % 3
-
+        col = i % num_examples
+        # Display input image
         axs[row, col].imshow(x[i], cmap=config.CMAP_IN, interpolation=config.PLOTTING_INTERPOLATION(
             config.CHANNELS_INPUT), vmin=vmin, vmax=vmax)
         axs[row, col].set_title(f"Input {i+1}")
         axs[row, col].axis('off')
-
+        # Print the filename if available
+        label = ds.get_filenames(x[i], "Unknown")
+        axs[row, col].text(0, 0, label, color='white', backgroundcolor='black')
         # Display predicted (RGB) image
-        # Ensure y_fake is permuted from [C, H, W] to [H, W, C] for correct display
-        axs[(row + 1) % 2, col].imshow(y_fake[i],
+        axs[(row + 1) % 3, col].imshow(y_fake[i],
                                        cmap=config.CMAP_OUT, interpolation=config.PLOTTING_INTERPOLATION(
             config.CHANNELS_OUTPUT),
             vmin=vmin, vmax=vmax)
-        axs[(row+1) % 2, col].set_title(f"Prediction {i+1}")
-        axs[(row+1) % 2, col].axis('off')
-
-        # Add a colorbar to the right of the figure
+        axs[(row+1) % 3, col].set_title(f"Prediction {i+1}")
+        axs[(row+1) % 3, col].axis('off')
+        
+        # Display the target image
+        axs[(row + 2) % 3, col].imshow(y[i], cmap=config.CMAP_OUT, interpolation=config.PLOTTING_INTERPOLATION(
+            config.CHANNELS_OUTPUT), vmin=vmin, vmax=vmax)
+        axs[(row + 2) % 3, col].set_title(f"Target {i+1}")
+        axs[(row + 2) % 3, col].axis('off')
+        label = ds.get_filenames(y[i], "Unknown")
+        axs[(row + 2) % 3, col].text(0, 0, label, color='white', backgroundcolor='black')
+        
+    # Add a colorbar to the right of the figure
     if config.CBAR and config.CHANNELS_OUTPUT == 1:
         fig.subplots_adjust(right=0.85)  # Make room for the colorbar
         cbar_ax = fig.add_axes([0.88, 0.15, 0.05, 0.7])  # Position of colorbar
@@ -358,13 +394,36 @@ def save_examples(
         sm = plt.cm.ScalarMappable(cmap=config.CMAP_OUT, norm=norm)
         sm.set_array([])
         fig.colorbar(sm, cax=cbar_ax)
+    
+    if task == 'segmentation':
+        # TODO: make this dynamic based on the classes
+        # add a legend for the segmentation task
+        color_map = {
+            0: [0, 0, 0],  # Background
+            1: [255, 0, 0],  # Class 1
+            2: [0, 255, 0],  # Class 2
+        }
+        label_names = {
+            0: "Background",
+            1: "625nm",
+            2: "605nm"
+        }
+        
+        legend_elements = [
+            plt.Line2D([0], [0], marker='o', color='w', label=label_names[i],
+                          markerfacecolor=[c / 255 for c in color_map[i]],
+                            markersize=10) for i in range(3)
+        ]
+        
+        # Add the legend to the figure
+        fig.legend(handles=legend_elements, loc='center right')
+            
 
     plt.tight_layout()
     plt.savefig(f"{folder}/comparison_epoch_{epoch}.png")
     plt.close('all')
 
     model.train()
-
 
 def save_checkpoint(model, optimizer, filename):
     '''
@@ -503,7 +562,7 @@ class LoggerOrDefault():
     def __init__(self) -> None:
         pass
 
-    @classmethod
+    @ classmethod
     def logger(cls, logger=None):
         '''
         Returns a logger object. If no logger is provided, a default
