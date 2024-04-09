@@ -162,3 +162,6 @@ CHANNELS_OUTPUT = 3  # 3 channels for the mask
 DATASET_TO_FLOAT = False  # Handle type conversion independently in the transforms
 
 SKIP_CHANNEL_EXPANSION = True  # Skip adding a channel dimension if not present
+SAVE_DST = True
+DST_SAVE_DIR = "/scratch/general/nfs1/u0977428/Training/unet/datasets"  # directory to save the datasets
+
