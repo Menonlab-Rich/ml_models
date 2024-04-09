@@ -22,7 +22,10 @@ def TARGET_READER(path: str, _: int):
     # Load the mask from a .npy file
     x = np.load(path)['mask']
 
-    return x
+    # Map class labels: -1 -> 1 (class of interest 1), 0 -> 0 (background), 1 -> 2 (class of interest 2)
+    target_mapped = np.where(x == -1, 1, np.where(x == 0, 0, 2))
+
+    return target_mapped
 
 
 def INPUT_READER(x, channels):
