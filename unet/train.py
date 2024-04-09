@@ -9,6 +9,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from model import UNet
 
+collector = utils.Losses()
 
 def train(loader, model, opt, loss_fn, scaler):
     loop = tqdm(loader, leave=True)
@@ -24,13 +25,12 @@ def train(loader, model, opt, loss_fn, scaler):
         with (torch.cuda.amp.autocast()):
             preds = model(x)
             loss = loss_fn(preds, y)
-
         opt.zero_grad()
         scaler.scale(loss).backward()
         scaler.step(opt)
         scaler.update()
-
         loop.set_postfix(loss=loss.item())
+        collector += loss.item()
 
 
 def main(predict_only=False):
@@ -87,6 +87,8 @@ def main(predict_only=False):
             # continue training even if examples could not be saved
         if config.SAVE_MODEL:
             utils.save_checkpoint(model, opt, filename=config.CHECKPOINT)
+    
+    collector.plot(config.RESULTS_DIR + "/losses.png")
 
 
 if __name__ == "__main__":

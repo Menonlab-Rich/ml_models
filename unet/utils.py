@@ -587,13 +587,73 @@ class LoggerOrDefault():
 
         return cls._logger
 
+class Losses():
+    def __init__(self):
+        self.losses = []
+        self.stats = []
+    
+    def append(self, loss):
+        self.losses.append(loss)
+    
+    def plot(self, output_path=None):
+        '''
+        Plot the statistics of the losses
+        '''
+        import matplotlib.pyplot as plt
+        x_axis = range(len(self.stats))
+        y_loss, y_mean, y_std = zip(*self.stats)
+        
+        plt.plot(x_axis, y_loss, label='Total Loss')
+        plt.plot(x_axis, y_mean, label='Mean Loss')
+        plt.plot(x_axis, y_std, label='Std Loss')
+        plt.legend()
+        if output_path:
+            plt.savefig(output_path)
+            plt.close() # Close the plot
+        else:
+            plt.show()
+        
+        
+    def summarize(self, reset=True):
+        '''
+        Summarize the losses by calculating the total, mean, and std of the losses
+        The results are stored in the stats attribute
+        
+        Parameters:
+        ----------
+        reset: bool, Default: True
+            Whether to reset the losses after summarizing
+        '''
+        total_losses = np.sum(self.losses)
+        mean_loss = np.mean(self.losses)
+        std_loss = np.std(self.losses)
+        self.stats.extend(zip(total_losses, mean_loss, std_loss))
+        if reset:
+            self.losses = []
+        
+    def get_stats(self, epoch=-1):
+        '''
+        Get the stats for a particular epoch
 
-if __name__ == "__main__":
-    from model import UNet
-    # Example usage
-    model = UNet(in_channels=config.CHANNELS_INPUT,
-                 out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
-    image_path = '/home/rich/Documents/school/menon/ml_models/unet/data/landscapes/gray/7128.jpg'
-    output_path = './prediction.jpg'
-    checkpoint_path = '/home/rich/Documents/school/menon/ml_models/unet/unet.pth.tar'
-    generate_model_prediction(model, checkpoint_path,  image_path, output_path)
+        Parameters:
+        ----------
+        epoch: int
+            Epoch to get the stats for
+            Default: -1 (last epoch)
+        '''
+        return self.stats[epoch]
+    
+    def __str__(self) -> str:
+        '''
+        Convert the losses to a string summary
+        '''
+        summary = ""
+        for i, total, mean, std in enumerate(self.stats):
+            summary += f"Epoch {i} - Total: {total}, Mean: {mean}, Std: {std}\n"
+        
+        return summary
+
+    # overwrite the += operator
+    def __iadd__(self, other):
+        self.append(other)
+        return self
