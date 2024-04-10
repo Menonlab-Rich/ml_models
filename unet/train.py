@@ -9,9 +9,11 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from model import UNet
 
+global collector
 collector = utils.Losses()
 
 def train(loader, model, opt, loss_fn, scaler):
+    global collector
     loop = tqdm(loader, leave=True)
     for idx, (x, y) in enumerate(loop):
         x, y = x.to(config.DEVICE), y.to(config.DEVICE)
@@ -87,7 +89,7 @@ def main(predict_only=False):
             # continue training even if examples could not be saved
         if config.SAVE_MODEL:
             utils.save_checkpoint(model, opt, filename=config.CHECKPOINT)
-    
+    global collector
     collector.plot(config.RESULTS_DIR + "/losses.png")
 
 
