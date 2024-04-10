@@ -169,7 +169,7 @@ SAVE_DST = True
 DST_SAVE_DIR = "/scratch/general/nfs1/u0977428/Training/unet/datasets"  # directory to save the datasets
 
 
-LOAD_MODEL = True  # set to True if you want to load a pre-trained model
+LOAD_MODEL = False  # set to True if you want to load a pre-trained model
 CHECKPOINT = r"unet.pth.tar"
 EXAMPLES_DIR = r'results'
 
