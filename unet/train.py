@@ -36,6 +36,7 @@ def train(loader, model, opt, loss_fn, scaler):
 
 
 def main(predict_only=False):
+    import os
     model = UNet(in_channels=config.CHANNELS_INPUT,
                  out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
 
@@ -89,8 +90,11 @@ def main(predict_only=False):
             # continue training even if examples could not be saved
         if config.SAVE_MODEL:
             utils.save_checkpoint(model, opt, filename=config.CHECKPOINT)
-    global collector
-    collector.plot(config.RESULTS_DIR + "/losses.png")
+    try:
+        global collector
+        collector.plot(os.path.join(config.EXAMPLES_DIR, "/losses.png"))
+    except Exception as e:
+        logging.error(f"Could not save losses: {e}")
 
 
 if __name__ == "__main__":
