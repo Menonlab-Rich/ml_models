@@ -52,6 +52,9 @@ def main(predict_only=False):
                     to_float=config.DATASET_TO_FLOAT
             )
         training_set, validation_set = utils.split_dataset(ds)
+        if config.SAVE_DST:
+            torch.save(training_set, config.DST_SAVE_DIR , "train.pth")
+            torch.save(validation_set, os.path.join(config.DST_SAVE_DIR , "val.pth"))
     
     # Set the input and target readers if required
     # This has to happen after the dataset is created
