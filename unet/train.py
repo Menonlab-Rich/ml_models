@@ -54,10 +54,13 @@ def main(predict_only=False):
             )
         training_set, validation_set = utils.split_dataset(ds)
         if config.SAVE_DST:
-            train_inputs = training_set.images
-            train_targets = training_set.targets
-            val_inputs = validation_set.images
-            val_targets = validation_set.targets
+            parent_set = training_set.dataset
+            train_inputs_indices = training_set.indices
+            val_inputs_indices = validation_set.indices
+            train_inputs = [parent_set.images[i] for i in train_inputs_indices]
+            train_targets = [parent_set.targets[i] for i in train_inputs_indices]
+            val_inputs = [parent_set.images[i] for i in val_inputs_indices]
+            val_targets = [parent_set.targets[i] for i in val_inputs_indices]
             datasets = {"train_inputs": train_inputs, "train_targets": train_targets, "val_inputs": val_inputs, "val_targets": val_targets}
             with open(os.path.join(config.DST_SAVE_DIR, "train.json"), "w") as f:
                 json.dump(datasets, f)
