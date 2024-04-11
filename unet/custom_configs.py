@@ -5,7 +5,6 @@ They are not usually required for the model to work, but can be used in special 
 Leave this file empty unless you know better.
 '''
 
-import cv2
 from albumentations.pytorch.transforms import ToTensorV2
 from albumentations import BasicTransform
 import albumentations as A
@@ -23,9 +22,7 @@ def TARGET_READER(path: str, _: int):
     x = np.load(path)['mask']
 
     # Map class labels: -1 -> 1 (class of interest 1), 0 -> 0 (background), 1 -> 2 (class of interest 2)
-    target_mapped = np.where(x == -1, 1, np.where(x == 0, 0, 2))
-
-    return target_mapped
+    return x
 
 
 def INPUT_READER(x, channels):
@@ -155,9 +152,9 @@ transform_target = A.Compose(
 
 # Adjust these parmaters to affect the training data
 # Glob pattern for training images
-TRAIN_IMG_PATTERN = "/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/*.tif"
+TRAIN_IMG_PATTERN = r"D:\CZI_scope\code\preprocess_training\tifs\625-*.tif" 
 # Glob pattern for target images
-TARGET_IMG_PATTERN = "/scratch/general/nfs1/u0977428/transfer/preprocess/masks/*.npz"
+TARGET_IMG_PATTERN = r"D:\CZI_scope\code\preprocess_training\masks\625-*.npz" 
 
 CHANNELS_INPUT = 1  # Grayscale
 CHANNELS_OUTPUT = 3  # 3 channels for the mask
@@ -169,9 +166,9 @@ SAVE_DST = True
 DST_SAVE_DIR = "/scratch/general/nfs1/u0977428/Training/unet/datasets"  # directory to save the datasets
 
 
-LOAD_MODEL = False  # set to True if you want to load a pre-trained model
-CHECKPOINT = r"unet.pth.tar"
-EXAMPLES_DIR = r'results'
+LOAD_MODEL = True  # set to True if you want to load a pre-trained model
+CHECKPOINT = r"D:\CZI_scope\code\ml_models\unet\unet.pth.tar"
+EXAMPLES_DIR = r"D:\CZI_scope\code\ml_models\unet\results"
 
 
 def ALIGNMENT_FN(x, y):
