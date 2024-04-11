@@ -8,6 +8,7 @@ from dataset import Dataset
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from model import UNet
+import json
 
 global collector
 collector = utils.Losses()
@@ -53,9 +54,13 @@ def main(predict_only=False):
             )
         training_set, validation_set = utils.split_dataset(ds)
         if config.SAVE_DST:
-            torch.save(training_set, os.path.join(config.DST_SAVE_DIR , "train.pth"))
-            torch.save(validation_set, os.path.join(config.DST_SAVE_DIR , "val.pth"))
-    
+            train_inputs = training_set.images
+            train_targets = training_set.targets
+            val_inputs = validation_set.images
+            val_targets = validation_set.targets
+            datasets = {"train_inputs": train_inputs, "train_targets": train_targets, "val_inputs": val_inputs, "val_targets": val_targets}
+            with open(os.path.join(config.DST_SAVE_DIR, "train.json"), "w") as f:
+                json.dump(datasets, f)
     # Set the input and target readers if required
     # This has to happen after the dataset is created
     if config.INPUT_READER:
