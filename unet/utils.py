@@ -93,11 +93,11 @@ def evaluate_proability_model(model, loader, device=config.DEVICE):
             print(f"Accuracy: {accuracy.item()}")
 
 
-def prepare_tensors_for_plotting(*img_tensors):
+def prepare_tensors_for_plotting(*img_tensors, dtype=torch.float32):
     # Convert to float
     np_imgs = []
     for img_tensor in img_tensors:
-        img_tensor = img_tensor.to(dtype=torch.float32)
+        img_tensor = img_tensor.to(dtype=dtype)
 
         # Calculate min and max values
         min_val = torch.min(img_tensor)
@@ -154,38 +154,51 @@ def get_color_range(img, min_fn, max_fn):
 
 
 
-def logits_to_rgb(logits, color_map=None):
+def logits_to_rgb(*logits, color_map=None):
     """
     Converts logits from a model to an RGB image based on a provided color map.
     """
-    # Apply softmax to get probabilities and then argmax to get predicted class indices
-    probs = torch.nn.functional.softmax(logits, dim=1)
-    predictions = torch.argmax(probs, dim=1)
+    imgs = []
+    for logit in logits:
+        # Apply softmax to get probabilities and then argmax to get predicted class indices
+        probs = torch.nn.functional.softmax(logit, dim=0)
+        predictions = torch.argmax(probs, dim=0)
     
-    if color_map is None:
-        color_map = {
-            0: [0, 0, 0],  # Background
-            1: [255, 0, 0],  # Class 1
-            2: [0, 255, 0],  # Class 2
-        }
+        if color_map is None:
+            color_map = {
+                0: [0, 0, 0],  # Background
+                1: [255, 0, 0],  # Class 1
+                2: [0, 255, 0],  # Class 2
+            }
     
-    # Prepare an empty tensor for the RGB image
-    rgb_image = torch.zeros(
-        predictions.size(0),
-        predictions.size(1),
-        predictions.size(2),
-        3,
-        dtype=torch.uint8, device=logits.device)
+        # Prepare an empty tensor for the RGB image
+        rgb_image = torch.zeros(
+            1,  # Batch size
+            predictions.size(0),
+            predictions.size(1),
+            dtype=torch.uint8, device=logit.device)
 
-    for class_index, color in color_map.items():
-        mask = (predictions == class_index).unsqueeze(-1)  # Add channel dimension for broadcasting
-        color_tensor = torch.tensor(color, device=logits.device, dtype=torch.uint8).view(1, 1, 1, 3)
-        rgb_image[mask] = color_tensor
+            # Assuming predictions, rgb_image, and color_map are defined as before
+        # Use only one of the redundant channels from predictions for further processing
+    # Assuming predictions shape is [3, 488, 820], use the first channel as the representative
 
-    return rgb_image # Shape: [N, H, W, 3]
+        # Proceed with your original logic for coloring based on this single-channel predictions
+        for class_index, color in color_map.items():
+            # Create mask for current class_index from the single-channel predictions
+            mask = (predictions == class_index).unsqueeze(0)  # Add channel dimension to the mask
+
+            # Prepare the color tensor on the same device as predictions and rgb_image
+            color_tensor = torch.tensor(color, device=predictions.device, dtype=torch.uint8).view(1, 3, 1, 1)
+
+            # Use where to apply color_tensor wherever mask is true
+            rgb_image = torch.where(mask, color_tensor, rgb_image)# Remove the batch dimension
+
+        imgs.append(rgb_image.squeeze().permute(1, 2, 0).cpu().numpy())
+
+    return imgs
 
 
-def map_to_rgb(y, color_map=None):
+def map_to_rgb(*y, color_map=None):
     """
     Maps class indices to RGB colors based on a provided color map.
     
@@ -198,27 +211,29 @@ def map_to_rgb(y, color_map=None):
     Returns:
     - np.ndarray: An RGB image. Shape: [N, H, W, 3].
     """
-    
-    if color_map is None:
-        color_map = {
-            0: [0, 0, 0],  # Background
-            1: [255, 0, 0],  # Class 1
-            2: [0, 255, 0],  # Class 2
-        }
-    
-    # Check if y is a PyTorch tensor and move to CPU and convert to numpy if necessary
-    if 'torch' in str(type(y)):
-        y = y.cpu().numpy()
-    
-    # Prepare an empty array for the RGB image
-    rgb_image = np.zeros(y.shape + (3,), dtype=np.uint8)
-    
-    for class_index, color in color_map.items():
-        mask = y == class_index
-        for c in range(3):  # RGB channels
-            rgb_image[..., c][mask] = color[c]
+    imgs = []
+    for y_ in y: 
+        if color_map is None:
+            color_map = {
+                0: [0, 0, 0],  # Background
+                1: [255, 0, 0],  # Class 1
+                2: [0, 255, 0],  # Class 2
+            }
+        
+        # Check if y is a PyTorch tensor and move to CPU and convert to numpy if necessary
+        if 'torch' in str(type(y_)):
+            y_ = y_.squeeze().cpu().numpy()
+        
+        # Prepare an empty array for the RGB image
+        rgb_image = np.zeros(y_.shape + (3,), dtype=np.uint8)
+        
+        for class_index, color in color_map.items():
+            mask = y_ == class_index
+            for c in range(3):  # RGB channels
+                rgb_image[..., c][mask] = color[c]
 
-    return rgb_image
+        imgs.append(rgb_image)
+    return imgs
 
 
 def gen_evaluation_report(model, val_loader, device, task, multi_channel=False):
@@ -344,11 +359,13 @@ def save_examples(
     with torch.no_grad():
         y_fake = model(x)
         if config.TASK == 'segmentation':
-            y_fake = logits_to_rgb(y_fake)
-            y = map_to_rgb(y)
+            y_fake = logits_to_rgb(*y_fake)
+            y = map_to_rgb(*y)
+            x = prepare_tensors_for_plotting(*x)
+        else:
         # Prepare tensors for plotting
-        y_fake = prepare_tensors_for_plotting(*y_fake)
-        x = prepare_tensors_for_plotting(*x)
+            y_fake = prepare_tensors_for_plotting(*y_fake)
+            x = prepare_tensors_for_plotting(*x)
 
     fig, axs = plt.subplots(3, num_examples, figsize=(15, 10))
     # Calculate dynamic range or use fixed values for color scaling
@@ -360,24 +377,19 @@ def save_examples(
         row = i // 3
         col = i % num_examples
         # Display input image
-        axs[row, col].imshow(x[i], cmap=config.CMAP_IN, interpolation=config.PLOTTING_INTERPOLATION(
-            config.CHANNELS_INPUT), vmin=vmin, vmax=vmax)
+        axs[row, col].imshow(x[i], cmap=config.CMAP_IN, vmin=0, vmax=1)
         axs[row, col].set_title(f"Input {i+1}")
         axs[row, col].axis('off')
         # Print the filename if available
         label = ds.get_filenames(x[i], "Unknown")
         axs[row, col].text(0, 0, label, color='white', backgroundcolor='black')
         # Display predicted (RGB) image
-        axs[(row + 1) % 3, col].imshow(y_fake[i],
-                                       cmap=config.CMAP_OUT, interpolation=config.PLOTTING_INTERPOLATION(
-            config.CHANNELS_OUTPUT),
-            vmin=vmin, vmax=vmax)
+        axs[(row + 1) % 3, col].imshow(y_fake[i], cmap=config.CMAP_OUT if y_fake[i].shape[-1] == 1 else None)
         axs[(row+1) % 3, col].set_title(f"Prediction {i+1}")
         axs[(row+1) % 3, col].axis('off')
         
         # Display the target image
-        axs[(row + 2) % 3, col].imshow(y[i], cmap=config.CMAP_OUT, interpolation=config.PLOTTING_INTERPOLATION(
-            config.CHANNELS_OUTPUT), vmin=vmin, vmax=vmax)
+        axs[(row + 2) % 3, col].imshow(y[i].squeeze(), cmap=config.CMAP_OUT, vmin=vmin, vmax=vmax)
         axs[(row + 2) % 3, col].set_title(f"Target {i+1}")
         axs[(row + 2) % 3, col].axis('off')
         label = ds.get_filenames(y[i], "Unknown")
