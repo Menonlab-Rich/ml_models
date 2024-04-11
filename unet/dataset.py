@@ -7,6 +7,9 @@ import logging
 import warnings
 import config
 
+def default_reader(x, channels):
+    return np.array(Image.open(x).convert("RGB" if channels == 3 else "L"))
+
 
 class Dataset(Dataset):
     def __init__(self, input_globbing_pattern=None,
@@ -79,10 +82,8 @@ class Dataset(Dataset):
             "target_input_combined": False, "logger": logging.getLogger(
                 __name__),
             "channels": (3, 3),
-            "input_reader": lambda x, channels: np.array(Image.open(x).convert(
-                "RGB" if channels == 3 else "L")),
-            "target_reader": lambda x, channels: np.array(Image.open(x).convert(
-                "RGB" if channels == 3 else "L")),
+            "input_reader": default_reader,
+            "target_reader": default_reader,
             "transform_keys": {"input": "image", "target": "image", "both": ("image", "target")},
             "to_float": True,  # Convert the images to float by default
             "validate_alignment": False,
