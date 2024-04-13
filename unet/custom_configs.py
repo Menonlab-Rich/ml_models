@@ -164,11 +164,12 @@ SKIP_CHANNEL_EXPANSION = True  # Skip adding a channel dimension if not present
 SAVE_DST = True
 DST_SAVE_DIR = "/scratch/general/nfs1/u0977428/Training/unet/datasets"  # directory to save the datasets
 
+LEARNING_RATE = 1e-4
 
 LOAD_MODEL = False  # set to True if you want to load a pre-trained model
 CHECKPOINT = r"unet.pth.tar"
 EXAMPLES_DIR = r'results'
 
-
+NUM_EPOCHS = 5
 def ALIGNMENT_FN(x, y):
     return x == '.'.join(y.split('.')[:-1]) if 'composite' not in x else x.split('.')[0] == y.split('.')[0] 
