@@ -91,10 +91,10 @@ def weights(
 
 
 # Set the loss function to CrossEntropyLoss for segmentation tasks
+cross_entropy_loss = nn.CrossEntropyLoss(reduction='mean')
 def LOSS_FN(x, y):
     y = y.squeeze(1)  # Remove the channel dimension
-    return nn.CrossEntropyLoss()(x, y)
-
+    return cross_entropy_loss(x, y)
 
 CBAR = False
 
@@ -154,20 +154,23 @@ transform_target = A.Compose(
 TRAIN_IMG_PATTERN = "/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/*.tif"
 # Glob pattern for target images
 TARGET_IMG_PATTERN = "/scratch/general/nfs1/u0977428/transfer/preprocess/masks/*.npz"
-
+# The directories are provided for loading the dataset from a file
+INPUT_DIR = r"D:\CZI_scope\code\preprocess_training\tifs"
+TARGET_DIR = r"D:\CZI_scope\code\preprocess_training\masks"
 CHANNELS_INPUT = 1  # Grayscale
 CHANNELS_OUTPUT = 3  # 3 channels for the mask
 
 DATASET_TO_FLOAT = False  # Handle type conversion independently in the transforms
 
 SKIP_CHANNEL_EXPANSION = True  # Skip adding a channel dimension if not present
-SAVE_DST = True
+SAVE_DST = False
+LOAD_DST = True
 DST_SAVE_DIR = "/scratch/general/nfs1/u0977428/Training/unet/datasets"  # directory to save the datasets
+DST_LOAD_DIR = r"D:\CZI_scope\code\ml_models\unet"
 
-
-LOAD_MODEL = False  # set to True if you want to load a pre-trained model
-CHECKPOINT = r"unet.pth.tar"
-EXAMPLES_DIR = r'results'
+LOAD_MODEL = True  # set to True if you want to load a pre-trained model
+CHECKPOINT = r"D:\CZI_scope\code\ml_models\unet\unet.pth.tar"
+EXAMPLES_DIR = r'D:\CZI_scope\code\ml_models\unet\results'
 
 
 def ALIGNMENT_FN(x, y):
