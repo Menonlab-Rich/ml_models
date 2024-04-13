@@ -14,7 +14,7 @@ global collector
 collector = utils.Losses()
 
 
-def train(loader, model, opt, loss_fn, scaler):
+def train(loader, model, opt, loss_fn, scaler, scheduler):
     global collector
     loop = tqdm(loader, leave=True)
     for idx, (x, y) in enumerate(loop):
@@ -26,15 +26,18 @@ def train(loader, model, opt, loss_fn, scaler):
         if len(x.shape) < 4:
             x = x.unsqueeze(1)  # add channel dimension
 
+        opt.zero_grad()
         with (torch.cuda.amp.autocast()):
             preds = model(x)
             loss = loss_fn(preds, y)
-        opt.zero_grad()
+        unscaled_loss = loss.item()
         scaler.scale(loss).backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Clip gradients
         scaler.step(opt)
         scaler.update()
-        loop.set_postfix(loss=loss.item())
-        collector += loss.item()
+        loop.set_postfix(loss=unscaled_loss)
+        collector += unscaled_loss
+        scheduler.step(loss.item()) # Adjust learning rate based on loss value using ReduceLROnPlateau
 
 
 def main(predict_only=False):
@@ -43,6 +46,7 @@ def main(predict_only=False):
                  out_channels=config.CHANNELS_OUTPUT).to(config.DEVICE)
 
     opt = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
+
     if config.LOAD_DST:
         training_set, validation_set = utils.load_datasets(
             os.path.join(config.DST_LOAD_DIR, 'dst.json'),
@@ -98,12 +102,13 @@ def main(predict_only=False):
             logging.warning("Training from scratch")
 
     scaler = torch.cuda.amp.GradScaler()
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optim, mode='min',factor=0.2, patience=2,min_lr=0.001)
     if predict_only:
         utils.save_examples(model, val_loader, 0,
                             config.EXAMPLES_DIR, config.DEVICE)
         return
     for epoch in range(config.NUM_EPOCHS):
-        train(train_loader, model, opt, config.LOSS_FN, scaler)
+        train(train_loader, model, opt, config.LOSS_FN, scaler, scheduler)
         try:
             utils.save_examples(model, val_loader, epoch,
                                 config.EXAMPLES_DIR, config.DEVICE)
