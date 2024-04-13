@@ -102,7 +102,7 @@ def main(predict_only=False):
             logging.warning("Training from scratch")
 
     scaler = torch.cuda.amp.GradScaler()
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optim, mode='min',factor=0.2, patience=2,min_lr=0.001)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min',factor=0.2, patience=2,min_lr=0.001)
     if predict_only:
         utils.save_examples(model, val_loader, 0,
                             config.EXAMPLES_DIR, config.DEVICE)
