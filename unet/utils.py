@@ -1,4 +1,5 @@
 from torchvision.transforms.functional import pad as F_pad
+from tqdm import tqdm
 import config
 import torch
 import logging
@@ -678,7 +679,7 @@ class Losses():
         return self
 
 
-def load_datasets(json_file, input_dir, target_dir, **kwargs):
+def load_datasets(json_file, input_dir, target_dir, tmp, match="*", **kwargs):
     '''
     Load a dataset from a JSON file
 
@@ -701,31 +702,72 @@ def load_datasets(json_file, input_dir, target_dir, **kwargs):
     with open(json_file, "r") as f:
         data = json.load(f)
     # Create a dataset from the data
-    val_inputs, val_targets = data["val_inputs"], data["val_targets"]
-    train_inputs, train_targets = data["train_inputs"], data["train_targets"]
+    val_inputs, val_targets = sorted(
+        data["val_inputs"]), sorted(
+        data["val_targets"])
+    train_inputs, train_targets = sorted(
+        data["train_inputs"]), sorted(
+        data["train_targets"])
     # copy the input and target data to a temporary directory
-    val_tmpdir = tempfile.mkdtemp()
-    train_tmpdir = tempfile.mkdtemp()
-    for i, (val_input, val_target, train_input, train_target) in enumerate(
-            zip(val_inputs, val_targets, train_inputs, train_targets)):
+    if os.path.exists(tmp):
+        shutil.rmtree(tmp)
+    os.makedirs(tmp)
+
+    def random_indices(lst, n):
+        import random
+        indices = random.sample(range(len(lst) - 1), n)
+        return indices
+
+    indices = random_indices(val_inputs, 100)
+    if len(val_inputs) > 100:
+        val_inputs = [val_inputs[i]
+                      for i in indices]
+        val_targets = [val_targets[i]
+                       for i in indices]
+    if len(train_inputs) > 100:
+        train_inputs = [train_inputs[i]
+                        for i in indices]
+        train_targets = [train_targets[i]
+                         for i in indices]
+
+    val_tmpdir = tempfile.mkdtemp(dir=tmp)
+    train_tmpdir = tempfile.mkdtemp(dir=tmp)
+    for i, (val_input, val_target, train_input, train_target) in tqdm(enumerate(
+            zip(val_inputs, val_targets, train_inputs, train_targets)), total=len(indices)):
         input_basename = os.path.basename(val_input)
         target_basename = os.path.basename(val_target)
         input_path = os.path.join(input_dir, input_basename)
         target_path = os.path.join(target_dir, target_basename)
-        shutil.copy(input_path, os.path.join(val_tmpdir, input_basename))
-        shutil.copy(target_path, os.path.join(val_tmpdir, target_basename))
+        try:
+            shutil.copy(input_path, os.path.join(val_tmpdir, input_basename))
+            shutil.copy(target_path, os.path.join(val_tmpdir, target_basename))
+        except FileNotFoundError:
+            print(f"File not found: {input_path} or {target_path}")
+            if os.path.exists(os.path.join(val_tmpdir, input_basename)):
+                os.remove(os.path.join(val_tmpdir, input_basename))
+            if os.path.exists(os.path.join(val_tmpdir, target_basename)):
+                os.remove(os.path.join(val_tmpdir, target_basename))
         input_basename = os.path.basename(train_input)
         target_basename = os.path.basename(train_target)
         input_path = os.path.join(input_dir, input_basename)
         target_path = os.path.join(target_dir, target_basename)
-        shutil.copy(input_path, os.path.join(train_tmpdir, input_basename))
-        shutil.copy(target_path, os.path.join(train_tmpdir, target_basename))
+        try:
+            shutil.copy(input_path, os.path.join(train_tmpdir, input_basename))
+            shutil.copy(target_path, os.path.join(
+                train_tmpdir, target_basename))
+        except FileNotFoundError:
+            print(f"File not found: {input_path} or {target_path}")
+            if os.path.exists(os.path.join(train_tmpdir, input_basename)):
+                os.remove(os.path.join(train_tmpdir, input_basename))
+            if os.path.exists(os.path.join(train_tmpdir, target_basename)):
+                os.remove(os.path.join(train_tmpdir, target_basename))
     train_ds = Dataset(
-        os.path.join(train_tmpdir, '605-*.tif'),
-        os.path.join(train_tmpdir, '605-*.npz'), **kwargs)
+        os.path.join(train_tmpdir, f'{match}.tif'),
+        os.path.join(train_tmpdir, f'{match}.npz'),
+        **kwargs)
     val_ds = Dataset(
-        os.path.join(val_tmpdir, "625-*.tif"),
-        os.path.join(val_tmpdir, "625-*.npz"),
+        os.path.join(val_tmpdir, f"{match}.tif"),
+        os.path.join(val_tmpdir, f"{match}.npz"),
         **kwargs)
 
     return train_ds, val_ds

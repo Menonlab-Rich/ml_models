@@ -50,7 +50,9 @@ def main(predict_only=False):
     if config.LOAD_DST:
         training_set, validation_set = utils.load_datasets(
             os.path.join(config.DST_LOAD_DIR, 'dst.json'),
-            config.INPUT_DIR, config.TARGET_DIR,
+            config.INPUT_DIR, config.TARGET_DIR, tmp=config.TMP_DIR,
+            transforms=(config.transform_input, config.transform_target,
+                        config.transform_both),
             channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT),
             to_float=config.DATASET_TO_FLOAT)
     else:
