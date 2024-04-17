@@ -3,3 +3,5 @@ data
 .vscode
 *.tar
 dst.json
+temp
+results/

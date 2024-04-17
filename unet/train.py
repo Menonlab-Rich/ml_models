@@ -32,12 +32,15 @@ def train(loader, model, opt, loss_fn, scaler, scheduler):
             loss = loss_fn(preds, y)
         unscaled_loss = loss.item()
         scaler.scale(loss).backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Clip gradients
+        torch.nn.utils.clip_grad_norm_(
+            model.parameters(),
+            max_norm=1.0)  # Clip gradients
         scaler.step(opt)
         scaler.update()
         loop.set_postfix(loss=unscaled_loss)
         collector += unscaled_loss
-        scheduler.step(loss.item()) # Adjust learning rate based on loss value using ReduceLROnPlateau
+        # Adjust learning rate based on loss value using ReduceLROnPlateau
+        scheduler.step(loss.item())
 
 
 def main(predict_only=False):
@@ -54,7 +57,8 @@ def main(predict_only=False):
             transforms=(config.transform_input, config.transform_target,
                         config.transform_both),
             channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT),
-            to_float=config.DATASET_TO_FLOAT)
+            to_float=config.DATASET_TO_FLOAT,
+            match="605-*")
     else:
         ds = Dataset(config.TRAIN_IMG_PATTERN, config.TARGET_IMG_PATTERN,
                      transforms=(config.transform_input, config.transform_target,
@@ -104,10 +108,12 @@ def main(predict_only=False):
             logging.warning("Training from scratch")
 
     scaler = torch.cuda.amp.GradScaler()
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min',factor=0.2, patience=2,min_lr=0.001)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        opt, mode='min', factor=0.2, patience=2, min_lr=0.001)
     if predict_only:
-        utils.save_examples(model, val_loader, 0,
-                            config.EXAMPLES_DIR, config.DEVICE)
+        utils.save_examples(
+            model, val_loader, 0, config.EXAMPLES_DIR, config.DEVICE,
+            save_filenames=True)
         return
     for epoch in range(config.NUM_EPOCHS):
         train(train_loader, model, opt, config.LOSS_FN, scaler, scheduler)

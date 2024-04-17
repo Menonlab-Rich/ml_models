@@ -309,7 +309,7 @@ def gen_evaluation_report(model, val_loader, device, task, multi_channel=False):
 
 def save_examples(
         model, val_loader, epoch, folder, device, task=config.TASK,
-        num_examples=3):
+        num_examples=3, save_filenames=False):
     if not hasattr(save_examples, "fixed_samples"):
         accumulated_x, accumulated_y = [], []
         for batch in val_loader:
@@ -319,6 +319,12 @@ def save_examples(
             if sum([x.shape[0] for x in accumulated_x]) >= num_examples:
                 break
         # Pad every tensor to the same dimension
+        if save_filenames:
+            with open(f"{folder}/filenames.txt", "a") as f:
+                for i in range(num_examples):
+                    labels = val_loader.dataset.get_filenames(i)
+                    f.write(f"Input {i+1}: {labels[0]}\n")
+                    f.write(f"Target {i+1}: {labels[1]}\n")
         if max(
                 [x.shape for x in accumulated_x]) != min(
                 [x.shape for x in accumulated_x]):
@@ -386,8 +392,6 @@ def save_examples(
         axs[row, col].set_title(f"Input {i+1}")
         axs[row, col].axis('off')
         # Print the filename if available
-        label = ds.get_filenames(x[i], "Unknown")
-        axs[row, col].text(0, 0, label, color='white', backgroundcolor='black')
         # Display predicted (RGB) image
         axs[(row + 1) % 3, col].imshow(y_fake[i],
                                        cmap=config.CMAP_OUT if y_fake[i].shape[-1] == 1 else None)
@@ -399,9 +403,6 @@ def save_examples(
                                        cmap=config.CMAP_OUT, vmin=vmin, vmax=vmax)
         axs[(row + 2) % 3, col].set_title(f"Target {i+1}")
         axs[(row + 2) % 3, col].axis('off')
-        label = ds.get_filenames(y[i], "Unknown")
-        axs[(row + 2) % 3, col].text(0, 0, label,
-                                     color='white', backgroundcolor='black')
 
     # Add a colorbar to the right of the figure
     if config.CBAR and config.CHANNELS_OUTPUT == 1:
@@ -762,8 +763,8 @@ def load_datasets(json_file, input_dir, target_dir, tmp, match="*", **kwargs):
             if os.path.exists(os.path.join(train_tmpdir, target_basename)):
                 os.remove(os.path.join(train_tmpdir, target_basename))
     train_ds = Dataset(
-        os.path.join(train_tmpdir, f'{match}.tif'),
-        os.path.join(train_tmpdir, f'{match}.npz'),
+        os.path.join(train_tmpdir, f'*.tif'),
+        os.path.join(train_tmpdir, f'*.npz'),
         **kwargs)
     val_ds = Dataset(
         os.path.join(val_tmpdir, f"{match}.tif"),
