@@ -1,28 +1,61 @@
 import torch
+from torch import nn, cuda
+from os import path, getcwd, listdir
+from PIL import Image
 import albumentations as A
-from utils import is_notebook
+from albumentations.pytorch import ToTensorV2
 
-
-IMG_CHANNELS = 3
-NUM_CLASSES = 2  # binary classification
-IMAGE_SIZE = 128
-BATCH_SIZE = 64
+_cwd = getcwd()
+DEVICE = 'cuda' if cuda.is_available() else 'cpu'
+MULTI_GPU = False
+INPUT_PATH = path.join(_cwd, 'input')
+MODEL_PATH = path.join(_cwd, 'model.tar')
+EPOCHS = 10
+BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
-NUM_EPOCHS = 10
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-LOSS_FN = lambda x, y: torch.nn.functional.cross_entropy(x, y.long(), weight=WEIGHTS)
-WEIGHTS = torch.tensor([1, 1]) # class weights for the loss function must be the same size as the number of classes
-TRAIN_IMG_DIR = "data/train/images"
-TRAIN_ANNOTATIONS_FILE = "data/train/annotations.json"
-CHECKPOINT = "model.pth"
-LOAD_MODEL = False
-SAVE_MODEL = True
-PREDICT_ONLY = False
-EXAMPLES_DIR = "examples"
-LOSSES_FILE = "losses.npz"
-IN_JUPYTER = is_notebook()
-LOSS_PLOT = "loss.png"
+NUM_CLASSES = 2
+CLASS_MAPPING = {0: '605', 1: '625'}
+PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
 
-TRANSFORMS = A.Compose(
-    [A.to_tensor(),],
-    bbox_params=A.BboxParams(format='coco', label_fields=['labels']))
+
+def INPUT_LOADER():
+    files = sorted([path.join(INPUT_PATH, x) for x in listdir(INPUT_PATH)])
+    return [Image.open(x) for x in files]
+
+def TARGET_LOADER():
+    files = sorted([path.join(INPUT_PATH, x) for x in listdir(INPUT_PATH)])
+    classes = [1 if x[:3] == CLASS_MAPPING[1] else 0 for x in files]
+    return torch.tensor(classes, dtype=torch.float32)
+
+INPUT_TRANSFORMS = A.Compose([
+    # Add transforms here to preprocess the input data
+    A.ToFloat(always_apply=True),
+    A.LongestMaxSize(max_size=256, always_apply=True),
+    A.PadIfNeeded(256, 256, always_apply=True),
+    # Add transforms here to augment the input data for training
+    A.RandomBrightnessContrast(p=0.3),
+    A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=0, p=0.3),
+    A.GaussNoise(var_limit=(10, 50), p=0.5)
+])
+
+VALIDATION_TRANSFORMS = A.Compose([
+    A.ToFloat(always_apply=True),
+    A.LongestMaxSize(max_size=256, always_apply=True),
+    A.PadIfNeeded(256, 256, always_apply=True)
+]) 
+
+TRANSFORMS = {
+    'train': {
+        'input': INPUT_TRANSFORMS,
+        'target': lambda y: torch.tensor(y, dtype=torch.long) # convert to tensor of type long
+    },
+    'val': {
+        'input': lambda x: INPUT_TRANSFORMS(image=x)['image'],
+        'target': lambda y: torch.tensor(y, dtype=torch.long) # convert to tensor of type long
+    }
+}
+
+LOSS_FN = nn.CrossEntropyLoss(label_smoothing=0.1) # Add more parameters as needed
+
+if __name__ == 'config':
+    assert not MULTI_GPU or cuda.is_available() and cuda.device_count() > 1, 'Cannot use multiple GPUs'
