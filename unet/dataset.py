@@ -43,7 +43,7 @@ class Dataset(Dataset):
         '''
         # Store the paths to the images
         self._defaults = None
-        self._filenames = {}
+        self._filenames = [] 
         validate_alignment = False
         alginment_fn = None
         if getattr(config, 'VALIDATE_ALIGNMENT', False):
@@ -178,9 +178,8 @@ class Dataset(Dataset):
             target_tensor = target_tensor.float()
         # Store a mapping from the tensor to the filename
         # For plotting purposes
-        self._filenames[id(input_tensor)] = self.images[idx]
-        self._filenames[id(target_tensor)] = self.targets[idx]
-        return input_tensor, target_tensor
+        self._filenames.append((self.images[idx], self.targets[idx]))
+        return input_tensor, target_tensor, 
     
-    def get_filenames(self, tensor, default=None):
-        return self._filenames.get(id(tensor), default)
+    def get_filenames(self, i=None):
+        return self._filenames if i is None else self._filenames[i]

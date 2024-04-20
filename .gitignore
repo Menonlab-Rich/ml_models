@@ -2,3 +2,6 @@ __pycache__
 data
 .vscode
 *.tar
+dst.json
+temp
+results/
