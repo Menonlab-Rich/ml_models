@@ -17,18 +17,24 @@ class TransformSubset():
             self, subset: Subset,
             transform: Dict[str, Callable[[np.ndarray],
                                           Any]] = None):
+
+        # This class won't work with any other type of subset
+        assert isinstance(
+            subset.dataset, GenericDataset), "The subset must be from a GenericDataset object."
         self.subset = subset
         self.transform = transform
-        
+        self.return_identifiers = False
+
     def __len__(self):
-        return len(self.subset) 
+        return len(self.subset)
 
     def __getitem__(self, idx):
         # Get the item from the main dataset
 
         # Apply transformation if specified
         if self.transform:
-            x, y = self.subset.dataset[self.subset.indices[idx]]
+            x = self.subset.dataset.inputs[idx]
+            y = self.subset.dataset.targets[idx]
             if 'input' in self.transform:
                 x = self.transform['input'](x)
             if 'target' in self.transform:
@@ -40,7 +46,23 @@ class TransformSubset():
                 y = ToTensorV2()(image=y)['image']
         else:
             x, y = self.subset[idx]
+        if self.return_identifiers:
+            return x, y, self.subset.dataset.input_identifiers[idx], self.subset.dataset.target_identifiers[idx]
         return x, y
+
+    def __getattribute__(self, name: str) -> Any:
+        try:
+            return super().__getattribute__(name)
+        except AttributeError:
+            # If the attribute is not found in the TransformSubset object, look for it in the subset object
+            attr = getattr(self.subset, name, None)
+
+        if attr is None:
+            # If the attribute is not found in the subset object, look for it in the dataset object
+            # If the attribute is not found in the dataset object, raise an AttributeError
+            attr = getattr(self.subset.dataset, name)
+
+        return attr
 
 
 class GenericDataset(data.Dataset):
@@ -65,13 +87,12 @@ class GenericDataset(data.Dataset):
         transform: A dictionary containing transformations for input and target data.
         '''
         self.transform = self._standardize_transform(transform)
-        self.inputs = input_loader()
-        self.targets = target_loader()
+        self.inputs, self.input_identifiers = input_loader()
+        self.targets, self.target_identifiers = target_loader()
 
         if len(self.inputs) != len(self.targets):
             raise ValueError(
                 "Input and target datasets must have the same length.")
-
 
     def _standardize_transform(self,
                                transform: Dict
@@ -108,6 +129,7 @@ class GenericDataset(data.Dataset):
     def __getitem__(self, index: int) -> Sequence[torch.Tensor]:
         inp = self.inputs[index]
         target = self.targets[index]
+        id = self.input_identifiers[index]
 
         if 'train' in self.transform:
             train_transforms = self.transform['train']

@@ -3,29 +3,30 @@ from torch import nn, cuda
 from os import path, getcwd, listdir
 from PIL import Image
 import albumentations as A
-from albumentations.pytorch import ToTensorV2
+import numpy as np
 
 _cwd = getcwd()
 DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 MULTI_GPU = False
-INPUT_PATH = path.join(_cwd, 'input')
-MODEL_PATH = path.join(_cwd, 'model.tar')
+INPUT_PATH = r'D:\CZI_scope\code\preprocess_training\tifs'
+# MODEL_PATH = path.join(_cwd, 'model.tar')
+MODEL_PATH = r'D:\CZI_scope\code\ml_models\resnet\model.tar'
 EPOCHS = 10
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
 NUM_CLASSES = 2
 CLASS_MAPPING = {0: '605', 1: '625'}
 PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
-
+NUM_CHANNELS = 1
 
 def INPUT_LOADER():
-    files = sorted([path.join(INPUT_PATH, x) for x in listdir(INPUT_PATH)])
-    return [Image.open(x) for x in files]
+    files = sorted([path.join(INPUT_PATH, x) for i, x in enumerate(listdir(INPUT_PATH)) if i < 10])
+    return [np.array(Image.open(x)) for x in files], files
 
 def TARGET_LOADER():
-    files = sorted([path.join(INPUT_PATH, x) for x in listdir(INPUT_PATH)])
+    files = sorted([path.join(INPUT_PATH, x) for i, x in enumerate(listdir(INPUT_PATH)) if i < 10])
     classes = [1 if x[:3] == CLASS_MAPPING[1] else 0 for x in files]
-    return torch.tensor(classes, dtype=torch.float32)
+    return classes, files
 
 INPUT_TRANSFORMS = A.Compose([
     # Add transforms here to preprocess the input data
@@ -46,7 +47,7 @@ VALIDATION_TRANSFORMS = A.Compose([
 
 TRANSFORMS = {
     'train': {
-        'input': INPUT_TRANSFORMS,
+        'input': lambda x: INPUT_TRANSFORMS(image=x)['image'], # Apply input transforms
         'target': lambda y: torch.tensor(y, dtype=torch.long) # convert to tensor of type long
     },
     'val': {
