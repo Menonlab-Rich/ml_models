@@ -4,6 +4,7 @@ from os import path, getcwd, listdir
 from PIL import Image
 import albumentations as A
 import numpy as np
+from dataset import GenericDataLoader
 
 _cwd = getcwd()
 DEVICE = 'cuda' if cuda.is_available() else 'cpu'
@@ -19,14 +20,52 @@ CLASS_MAPPING = {0: '605', 1: '625'}
 PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
 NUM_CHANNELS = 1
 
-def INPUT_LOADER():
-    files = sorted([path.join(INPUT_PATH, x) for i, x in enumerate(listdir(INPUT_PATH)) if i < 10])
-    return [np.array(Image.open(x)) for x in files], files
-
-def TARGET_LOADER():
-    files = sorted([path.join(INPUT_PATH, x) for i, x in enumerate(listdir(INPUT_PATH)) if i < 10])
-    classes = [1 if x[:3] == CLASS_MAPPING[1] else 0 for x in files]
-    return classes, files
+class InputLoader(GenericDataLoader):
+    def __init__(self, directory):
+        self.directory = directory
+        self.files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+    
+    def __len__(self):
+        return len(self.files)
+    
+    def __getitem__(self, idx):
+        return self._read(self.files[idx])
+    
+    def __iter__(self):
+        for file in self.files:
+            yield self._read(file)
+    
+    def get_ids(self, i=None):
+        if i is not None:
+            return self.files[i]
+        return self.files
+    
+    def _read(self, file):
+        file = path.basename(file) # make sure that the file is just the name
+        return np.array(Image.open(path.join(self.directory, file)))
+    
+class TargetLoader(GenericDataLoader):
+    def __init__(self, directory):
+        files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+        self.classes = [1 if x[:3] == CLASS_MAPPING[1] else 0 for x in files]
+    def __len__(self):
+        return len(self.classes)
+    
+    def __getitem__(self, idx):
+        return self.classes[idx]
+    
+    def __iter__(self):
+        for c in self.classes:
+            yield c
+    
+    def get_ids(self, i=None):
+        if i is not None:
+            return self.classes[i]
+        return self.classes
+    
+INPUT_LOADER = InputLoader(INPUT_PATH)
+TARGET_LOADER = TargetLoader(INPUT_PATH)
+        
 
 INPUT_TRANSFORMS = A.Compose([
     # Add transforms here to preprocess the input data

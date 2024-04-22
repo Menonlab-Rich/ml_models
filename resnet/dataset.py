@@ -8,6 +8,22 @@ from torch.utils.data import Subset
 import copy
 
 
+class GenericDataLoader():
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    def __len__(self):
+        pass
+    
+    def __getitem__(self, idx):
+        pass
+    
+    def get_ids(self, i=None):
+        pass
+    
+    def __iter__(self):
+        pass
+
 class TransformSubset():
     '''
     A Subset that applies a transformation to the data.
@@ -33,8 +49,8 @@ class TransformSubset():
 
         # Apply transformation if specified
         if self.transform:
-            x = self.subset.dataset.inputs[idx]
-            y = self.subset.dataset.targets[idx]
+            x = self.subset.dataset.input_loader[idx]
+            y = self.subset.dataset.target_loader[idx]
             if 'input' in self.transform:
                 x = self.transform['input'](x)
             if 'target' in self.transform:
@@ -72,10 +88,8 @@ class GenericDataset(data.Dataset):
     '''
 
     def __init__(
-            self, input_loader: Callable[[],
-                                         Sequence[Any]],
-            target_loader: Callable[[],
-                                    Sequence[Any]],
+            self, input_loader: GenericDataLoader,
+            target_loader: GenericDataLoader,
             transform: Dict[str, Callable[[np.ndarray], Any]] = None):
         '''
         Create a new GenericDataset object.
@@ -87,10 +101,12 @@ class GenericDataset(data.Dataset):
         transform: A dictionary containing transformations for input and target data.
         '''
         self.transform = self._standardize_transform(transform)
-        self.inputs, self.input_identifiers = input_loader()
-        self.targets, self.target_identifiers = target_loader()
+        self.input_loader = input_loader
+        self.target_loader = target_loader
+        self.input_identifiers = input_loader.get_ids()
+        self.target_identifiers = target_loader.get_ids()
 
-        if len(self.inputs) != len(self.targets):
+        if len(self.input_loader) != len(self.target_loader):
             raise ValueError(
                 "Input and target datasets must have the same length.")
 
@@ -124,12 +140,11 @@ class GenericDataset(data.Dataset):
         return transform
 
     def __len__(self) -> int:
-        return len(self.inputs)
+        return len(self.input_loader)
 
     def __getitem__(self, index: int) -> Sequence[torch.Tensor]:
-        inp = self.inputs[index]
-        target = self.targets[index]
-        id = self.input_identifiers[index]
+        inp = self.input_loader[index]
+        target = self.target_loader[index]
 
         if 'train' in self.transform:
             train_transforms = self.transform['train']
@@ -140,7 +155,7 @@ class GenericDataset(data.Dataset):
             # Apply transformation to target if specified
             if 'target' in train_transforms:
                 target = train_transforms['target'](target)
-
+                
         toTensor = ToTensorV2()
         # verify that input and target are both tensors and make them tensors if they are not
         if not torch.is_tensor(inp):
@@ -168,9 +183,6 @@ if __name__ == '__main__':
     import numpy as np
     from torch.utils.data import DataLoader
 
-    def load_data(directory):
-        # mock data loader
-        return [np.zeros((10, 10, 3)), np.zeros((10, 10, 3)), np.zeros((10, 10, 3))]
 
     def transform_input(image):
         return image / 255.0
@@ -183,10 +195,28 @@ if __name__ == '__main__':
 
     def transform_val_target(target):
         return np.where(target < 1, 1, 0)
+    
+    class TestLoader(GenericDataLoader):
+        def __init__(self):
+            pass
+
+        def get_ids(self, i=None):
+            if i is not None:
+                return f"input_{i}"
+            return [f"input_{i}" for i in range(3)]
+        
+        def __len__(self):
+            return 3
+        
+        def __getitem__(self, idx):
+            return np.zeros((10, 10, 3))
+        
+        
+        
 
     dataset = GenericDataset(
-        input_loader=lambda: load_data('inputs'),
-        target_loader=lambda: load_data('targets'),
+        input_loader=TestLoader(),
+        target_loader=TestLoader(),
         transform={
             'train':
             {'input': transform_input, 'target': transform_target},
@@ -207,7 +237,7 @@ if __name__ == '__main__':
     train_set, val_set = dataset.split(0.8)
     train_loader = DataLoader(train_set, batch_size=1, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
-    for i, (inputs, targets) in enumerate(train_loader):
+    for i, (inputs, targets) in enumerate(val_loader):
         print(f"Train Batch {i}:")
         print(f"Inputs shape: {inputs.shape}")
         print(f"Targets shape: {targets.shape}")
