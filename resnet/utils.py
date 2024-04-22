@@ -69,8 +69,8 @@ class Evaluator:
 
 def save_data(dataset: GenericDataset, name: str) -> None:
     ds_obj = {
-        'inputs': dataset.inputs,
-        'targets': dataset.targets
+        'inputs': dataset.input_loader.get_ids(),
+        'targets': dataset.target_loader.get_ids()
     }
 
     torch.save(ds_obj, f'{name}.tar')
