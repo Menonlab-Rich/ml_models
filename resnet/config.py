@@ -4,13 +4,13 @@ from os import path, getcwd, listdir
 from PIL import Image
 import albumentations as A
 import numpy as np
+from glob import glob
 
 _cwd = getcwd()
 DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 MULTI_GPU = False
-INPUT_PATH = r'D:\CZI_scope\code\preprocess_training\tifs'
-# MODEL_PATH = path.join(_cwd, 'model.tar')
-MODEL_PATH = r'D:\CZI_scope\code\ml_models\resnet\model.tar'
+INPUT_PATH = '/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/'
+MODEL_PATH = path.join(_cwd, 'm del.tar')
 EPOCHS = 10
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
@@ -20,11 +20,11 @@ PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
 NUM_CHANNELS = 1
 
 def INPUT_LOADER():
-    files = sorted([path.join(INPUT_PATH, x) for i, x in enumerate(listdir(INPUT_PATH)) if i < 10])
+    files = sorted([path.join(INPUT_PATH, x) for x in glob(f'{INPUT_PATH}/*.tif')])
     return [np.array(Image.open(x)) for x in files], files
 
 def TARGET_LOADER():
-    files = sorted([path.join(INPUT_PATH, x) for i, x in enumerate(listdir(INPUT_PATH)) if i < 10])
+    files = sorted([path.join(INPUT_PATH, x) for x in listdir(INPUT_PATH)])
     classes = [1 if x[:3] == CLASS_MAPPING[1] else 0 for x in files]
     return classes, files
 
