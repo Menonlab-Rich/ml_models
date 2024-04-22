@@ -86,7 +86,7 @@ def prepare_tensor_for_plotting(tensor: torch.Tensor) -> np.ndarray:
 
 
 def save_model(model: nn.Module, name: str) -> None:
-    torch.save(model.state_dict(), f'{name}.pth')
+    torch.save(model.state_dict(), name)
 
 
 def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader,
