@@ -55,7 +55,7 @@ def main():
         scheduler.step(val_loss)
         if val_loss < best_loss:
             best_loss = val_loss
-            utils.save_model(model, MODEL_PATH)
+            utils.save_checkpoint(model, optimizer, epoch, MODEL_PATH)
             logger.info('Model saved')
     
     evaluator.plot(metrics='both', output_path=PREDICTIONS_PATH)
