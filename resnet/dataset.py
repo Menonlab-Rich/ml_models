@@ -105,6 +105,7 @@ class GenericDataset(data.Dataset):
         self.target_loader = target_loader
         self.input_identifiers = input_loader.get_ids()
         self.target_identifiers = target_loader.get_ids()
+        self._eval_mode = False
 
         if len(self.input_loader) != len(self.target_loader):
             raise ValueError(
@@ -146,7 +147,7 @@ class GenericDataset(data.Dataset):
         inp = self.input_loader[index]
         target = self.target_loader[index]
 
-        if 'train' in self.transform:
+        if 'train' in self.transform and not self._eval_mode:
             train_transforms = self.transform['train']
             # Apply transformation to input if specified
             if 'input' in train_transforms:
@@ -155,6 +156,16 @@ class GenericDataset(data.Dataset):
             # Apply transformation to target if specified
             if 'target' in train_transforms:
                 target = train_transforms['target'](target)
+        
+        elif 'val' in self.transform and self._eval_mode:
+            val_transforms = self.transform['val']
+            # Apply transformation to input if specified
+            if 'input' in val_transforms:
+                inp = val_transforms['input'](inp)
+
+            # Apply transformation to target if specified
+            if 'target' in val_transforms:
+                target = val_transforms['target'](target)
                 
         toTensor = ToTensorV2()
         # verify that input and target are both tensors and make them tensors if they are not
@@ -173,6 +184,12 @@ class GenericDataset(data.Dataset):
         return TransformSubset(
             train_set, self.transform['train']), TransformSubset(
             val_set, self.transform['val'])
+            
+    def evaluate(self):
+        self._eval_mode = True
+        
+    def train(self):
+        self._eval_mode = False
 
 # Example usage:
 # Assuming input_loader and target_loader are functions that load your data lists

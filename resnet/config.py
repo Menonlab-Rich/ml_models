@@ -8,6 +8,8 @@ from glob import glob
 from dataset import GenericDataLoader
 
 _cwd = getcwd()
+# ROOT_DIR = path.dirname(_cwd)
+ROOT_DIR = r'D:\CZI_scope\code\ml_models\resnet'
 DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 MULTI_GPU = False
 INPUT_PATH = '/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/'
@@ -19,11 +21,14 @@ NUM_CLASSES = 2
 CLASS_MAPPING = {0: '605', 1: '625'}
 PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
 NUM_CHANNELS = 1
+#DST_SAVE_DIR = path.join(_cwd, 'data')
+DST_SAVE_DIR = r'D:\CZI_scope\code\ml_models\resnet\data'
 
 class InputLoader(GenericDataLoader):
     def __init__(self, directory):
         self.directory = directory
-        self.files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+        files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+        self.files = files[1:3]
     
     def __len__(self):
         return len(self.files)
@@ -47,7 +52,9 @@ class InputLoader(GenericDataLoader):
 class TargetLoader(GenericDataLoader):
     def __init__(self, directory):
         files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+        files = files[1:3]
         self.classes = [1 if x[:3] == CLASS_MAPPING[1] else 0 for x in files]
+
     def __len__(self):
         return len(self.classes)
     
@@ -73,16 +80,17 @@ INPUT_TRANSFORMS = A.Compose([
     A.LongestMaxSize(max_size=256, always_apply=True),
     A.PadIfNeeded(256, 256, always_apply=True),
     # Add transforms here to augment the input data for training
-    A.RandomBrightnessContrast(p=0.3),
-    A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=0, p=0.3),
-    A.GaussNoise(var_limit=(10, 50), p=0.5)
+   A.RandomBrightnessContrast(p=.5),
+   A.GaussNoise(var_limit=(1e-4, 1e-3), p=.5),
 ])
 
-VALIDATION_TRANSFORMS = A.Compose([
+VAL_TRANSFORMS = ([
     A.ToFloat(always_apply=True),
     A.LongestMaxSize(max_size=256, always_apply=True),
-    A.PadIfNeeded(256, 256, always_apply=True)
-]) 
+    A.PadIfNeeded(256, 256, always_apply=True),
+])
+
+ 
 
 TRANSFORMS = {
     'train': {
@@ -90,7 +98,7 @@ TRANSFORMS = {
         'target': lambda y: torch.tensor(y, dtype=torch.long) # convert to tensor of type long
     },
     'val': {
-        'input': lambda x: INPUT_TRANSFORMS(image=x)['image'],
+        'input': lambda x: VAL_TRANSFORMS(image=x)['image'],
         'target': lambda y: torch.tensor(y, dtype=torch.long) # convert to tensor of type long
     }
 }

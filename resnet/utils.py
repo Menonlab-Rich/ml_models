@@ -85,9 +85,12 @@ def prepare_tensor_for_plotting(tensor: torch.Tensor) -> np.ndarray:
     return tensor.permute(1, 2, 0).cpu().numpy()
 
 
-def save_model(model: nn.Module, name: str) -> None:
-    torch.save(model.state_dict(), name)
-
+def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, name: str) -> None:
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict()
+    }, name)
 
 def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader,
              loss_fn: nn.Module, device: torch.device) -> float:
@@ -166,6 +169,21 @@ def plot_model_predictions(
     else:
         plt.show()
 
+def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, device,
+                    filename: str) -> int:
+    """
+    Loads a model checkpoint from a file.
+
+    Args:
+    - model (torch.nn.Module): Model to load the checkpoint parameters into.
+    - optimizer (torch.optim.Optimizer): Optimizer to load the checkpoint parameters into.
+    - filename (str): Path to the checkpoint file.
+
+    Returns:
+    - int: The epoch number of the checkpoint.
+    """
+    checkpoint = torch.load(filename, map_location=torch.device(device))
+    model.load_state_dict(checkpoint)
 
 if __name__ == '__main__':
     from dataset import GenericDataset
