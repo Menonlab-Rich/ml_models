@@ -7,9 +7,6 @@ import logging
 import warnings
 import config
 
-def default_reader(x, channels):
-    return np.array(Image.open(x).convert("RGB" if channels == 3 else "L"))
-
 
 class Dataset(Dataset):
     def __init__(self, input_globbing_pattern=None,
@@ -43,7 +40,7 @@ class Dataset(Dataset):
         '''
         # Store the paths to the images
         self._defaults = None
-        self._filenames = [] 
+        self._filenames = {}
         validate_alignment = False
         alginment_fn = None
         if getattr(config, 'VALIDATE_ALIGNMENT', False):
@@ -82,8 +79,10 @@ class Dataset(Dataset):
             "target_input_combined": False, "logger": logging.getLogger(
                 __name__),
             "channels": (3, 3),
-            "input_reader": default_reader,
-            "target_reader": default_reader,
+            "input_reader": lambda x, channels: np.array(Image.open(x).convert(
+                "RGB" if channels == 3 else "L")),
+            "target_reader": lambda x, channels: np.array(Image.open(x).convert(
+                "RGB" if channels == 3 else "L")),
             "transform_keys": {"input": "image", "target": "image", "both": ("image", "target")},
             "to_float": True,  # Convert the images to float by default
             "validate_alignment": False,
@@ -178,8 +177,9 @@ class Dataset(Dataset):
             target_tensor = target_tensor.float()
         # Store a mapping from the tensor to the filename
         # For plotting purposes
-        self._filenames.append((self.images[idx], self.targets[idx]))
-        return input_tensor, target_tensor, 
+        self._filenames[id(input_tensor)] = self.images[idx]
+        self._filenames[id(target_tensor)] = self.targets[idx]
+        return input_tensor, target_tensor
     
-    def get_filenames(self, i=None):
-        return self._filenames if i is None else self._filenames[i]
+    def get_filenames(self, tensor, default=None):
+        return self._filenames.get(id(tensor), default)

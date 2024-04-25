@@ -69,11 +69,8 @@ CHECKPOINT = "unet.pth.tar"  # Saved modle filename
 SAVE_DST = False  # set to True to save the training and validation datasets (useful for debugging)
 LOAD_DST = False  # set to True to load the training and validation datasets (useful for debugging)
 DST_SAVE_DIR = "/scratch/general/nfs1/u0977428/Training/ml_models/unet/datasets"  # directory to save the datasets
-DST_LOAD_DIR = r"D:\CZI_scope\code\ml_models\unet"  # directory to load the datasets from
-TMP_DIR = r"D:\CZI_scope\code\ml_models\unet\temp"  # directory to save temporary files when loading the datasets
 
-INPUT_DIR = os.path.basename(TRAIN_IMG_PATTERN)
-TARGET_DIR = os.path.basename(TARGET_IMG_PATTERN)
+
 # Augmentation pipeline
 # Find documentation here: https://albumentations.ai/docs/
 # This pipeline is applied to both the input and target images
