@@ -183,7 +183,9 @@ def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, device,
     - int: The epoch number of the checkpoint.
     """
     checkpoint = torch.load(filename, map_location=torch.device(device))
-    model.load_state_dict(checkpoint)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    return checkpoint['epoch']
 
 if __name__ == '__main__':
     from dataset import GenericDataset

@@ -1,5 +1,4 @@
 from torchvision.transforms.functional import pad as F_pad
-from tqdm import tqdm
 import config
 import torch
 import logging
@@ -94,11 +93,11 @@ def evaluate_proability_model(model, loader, device=config.DEVICE):
             print(f"Accuracy: {accuracy.item()}")
 
 
-def prepare_tensors_for_plotting(*img_tensors, dtype=torch.float32):
+def prepare_tensors_for_plotting(*img_tensors):
     # Convert to float
     np_imgs = []
     for img_tensor in img_tensors:
-        img_tensor = img_tensor.to(dtype=dtype)
+        img_tensor = img_tensor.to(dtype=torch.float32)
 
         # Calculate min and max values
         min_val = torch.min(img_tensor)
@@ -154,58 +153,42 @@ def get_color_range(img, min_fn, max_fn):
     return vmin, vmax
 
 
-def logits_to_rgb(*logits, color_map=None):
+
+def logits_to_rgb(logits, color_map=None):
     """
     Converts logits from a model to an RGB image based on a provided color map.
     """
-    imgs = []
-    for logit in logits:
-        # Apply softmax to get probabilities and then argmax to get predicted class indices
-        probs = torch.nn.functional.softmax(logit, dim=0)
-        predictions = torch.argmax(probs, dim=0)
+    # Apply softmax to get probabilities and then argmax to get predicted class indices
+    probs = torch.nn.functional.softmax(logits, dim=1)
+    predictions = torch.argmax(probs, dim=1)
+    
+    if color_map is None:
+        color_map = {
+            0: [0, 0, 0],  # Background
+            1: [255, 0, 0],  # Class 1
+            2: [0, 255, 0],  # Class 2
+        }
+    
+    # Prepare an empty tensor for the RGB image
+    rgb_image = torch.zeros(
+        predictions.size(0),
+        predictions.size(1),
+        predictions.size(2),
+        3,
+        dtype=torch.uint8, device=logits.device)
 
-        if color_map is None:
-            color_map = {
-                0: [0, 0, 0],  # Background
-                1: [255, 0, 0],  # Class 1
-                2: [0, 255, 0],  # Class 2
-            }
+    for class_index, color in color_map.items():
+        mask = (predictions == class_index).unsqueeze(-1)  # Add channel dimension for broadcasting
+        color_tensor = torch.tensor(color, device=logits.device, dtype=torch.uint8).view(1, 1, 1, 3)
+        rgb_image[mask] = color_tensor
 
-        # Prepare an empty tensor for the RGB image
-        rgb_image = torch.zeros(
-            1,  # Batch size
-            predictions.size(0),
-            predictions.size(1),
-            dtype=torch.uint8, device=logit.device)
-
-        # Assuming predictions, rgb_image, and color_map are defined as before
-        # Use only one of the redundant channels from predictions for further processing
-    # Assuming predictions shape is [3, 488, 820], use the first channel as the representative
-
-        # Proceed with your original logic for coloring based on this single-channel predictions
-        for class_index, color in color_map.items():
-            # Create mask for current class_index from the single-channel predictions
-            mask = (predictions == class_index).unsqueeze(
-                0)  # Add channel dimension to the mask
-
-            # Prepare the color tensor on the same device as predictions and rgb_image
-            color_tensor = torch.tensor(
-                color, device=predictions.device, dtype=torch.uint8).view(
-                1, 3, 1, 1)
-
-            # Use where to apply color_tensor wherever mask is true
-            # Remove the batch dimension
-            rgb_image = torch.where(mask, color_tensor, rgb_image)
-
-        imgs.append(rgb_image.squeeze().permute(1, 2, 0).cpu().numpy())
-
-    return imgs
+    return rgb_image # Shape: [N, H, W, 3]
 
 
-def map_to_rgb(*y, color_map=None):
+def map_to_rgb(y, color_map=None):
     """
     Maps class indices to RGB colors based on a provided color map.
-
+    
     Parameters:
     - y: np.ndarray or torch.Tensor
         The class indices. Shape: [N, H, W].
@@ -215,29 +198,27 @@ def map_to_rgb(*y, color_map=None):
     Returns:
     - np.ndarray: An RGB image. Shape: [N, H, W, 3].
     """
-    imgs = []
-    for y_ in y:
-        if color_map is None:
-            color_map = {
-                0: [0, 0, 0],  # Background
-                1: [255, 0, 0],  # Class 1
-                2: [0, 255, 0],  # Class 2
-            }
+    
+    if color_map is None:
+        color_map = {
+            0: [0, 0, 0],  # Background
+            1: [255, 0, 0],  # Class 1
+            2: [0, 255, 0],  # Class 2
+        }
+    
+    # Check if y is a PyTorch tensor and move to CPU and convert to numpy if necessary
+    if 'torch' in str(type(y)):
+        y = y.cpu().numpy()
+    
+    # Prepare an empty array for the RGB image
+    rgb_image = np.zeros(y.shape + (3,), dtype=np.uint8)
+    
+    for class_index, color in color_map.items():
+        mask = y == class_index
+        for c in range(3):  # RGB channels
+            rgb_image[..., c][mask] = color[c]
 
-        # Check if y is a PyTorch tensor and move to CPU and convert to numpy if necessary
-        if 'torch' in str(type(y_)):
-            y_ = y_.squeeze().cpu().numpy()
-
-        # Prepare an empty array for the RGB image
-        rgb_image = np.zeros(y_.shape + (3,), dtype=np.uint8)
-
-        for class_index, color in color_map.items():
-            mask = y_ == class_index
-            for c in range(3):  # RGB channels
-                rgb_image[..., c][mask] = color[c]
-
-        imgs.append(rgb_image)
-    return imgs
+    return rgb_image
 
 
 def gen_evaluation_report(model, val_loader, device, task, multi_channel=False):
@@ -308,8 +289,7 @@ def gen_evaluation_report(model, val_loader, device, task, multi_channel=False):
 
 
 def save_examples(
-        model, val_loader, epoch, folder, device, task=config.TASK,
-        num_examples=3, save_filenames=False):
+        model, val_loader, epoch, folder, device, task=config.TASK, num_examples=3):
     if not hasattr(save_examples, "fixed_samples"):
         accumulated_x, accumulated_y = [], []
         for batch in val_loader:
@@ -319,12 +299,6 @@ def save_examples(
             if sum([x.shape[0] for x in accumulated_x]) >= num_examples:
                 break
         # Pad every tensor to the same dimension
-        if save_filenames:
-            with open(f"{folder}/filenames.txt", "a") as f:
-                for i in range(num_examples):
-                    labels = val_loader.dataset.get_filenames(i)
-                    f.write(f"Input {i+1}: {labels[0]}\n")
-                    f.write(f"Target {i+1}: {labels[1]}\n")
         if max(
                 [x.shape for x in accumulated_x]) != min(
                 [x.shape for x in accumulated_x]):
@@ -370,40 +344,45 @@ def save_examples(
     with torch.no_grad():
         y_fake = model(x)
         if config.TASK == 'segmentation':
-            y_fake = logits_to_rgb(*y_fake)
-            y = map_to_rgb(*y)
-            x = prepare_tensors_for_plotting(*x)
-        else:
-            # Prepare tensors for plotting
-            y_fake = prepare_tensors_for_plotting(*y_fake)
-            x = prepare_tensors_for_plotting(*x)
+            y_fake = logits_to_rgb(y_fake)
+            y = map_to_rgb(y)
+        # Prepare tensors for plotting
+        y_fake = prepare_tensors_for_plotting(*y_fake)
+        x = prepare_tensors_for_plotting(*x)
 
     fig, axs = plt.subplots(3, num_examples, figsize=(15, 10))
     # Calculate dynamic range or use fixed values for color scaling
     vmin, vmax = get_color_range(y_fake, config.CBAR_MIN, config.CBAR_MAX)
     ds = val_loader.dataset
     if hasattr(ds, "dataset"):
-        ds = ds.dataset  # ds is a subset so we need to get the dataset
+        ds = ds.dataset # ds is a subset so we need to get the dataset
     for i in range(num_examples):
         row = i // 3
         col = i % num_examples
         # Display input image
-        axs[row, col].imshow(x[i], cmap=config.CMAP_IN, vmin=0, vmax=1)
+        axs[row, col].imshow(x[i], cmap=config.CMAP_IN, interpolation=config.PLOTTING_INTERPOLATION(
+            config.CHANNELS_INPUT), vmin=vmin, vmax=vmax)
         axs[row, col].set_title(f"Input {i+1}")
         axs[row, col].axis('off')
         # Print the filename if available
+        label = ds.get_filenames(x[i], "Unknown")
+        axs[row, col].text(0, 0, label, color='white', backgroundcolor='black')
         # Display predicted (RGB) image
         axs[(row + 1) % 3, col].imshow(y_fake[i],
-                                       cmap=config.CMAP_OUT if y_fake[i].shape[-1] == 1 else None)
+                                       cmap=config.CMAP_OUT, interpolation=config.PLOTTING_INTERPOLATION(
+            config.CHANNELS_OUTPUT),
+            vmin=vmin, vmax=vmax)
         axs[(row+1) % 3, col].set_title(f"Prediction {i+1}")
         axs[(row+1) % 3, col].axis('off')
-
+        
         # Display the target image
-        axs[(row + 2) % 3, col].imshow(y[i].squeeze(),
-                                       cmap=config.CMAP_OUT, vmin=vmin, vmax=vmax)
+        axs[(row + 2) % 3, col].imshow(y[i], cmap=config.CMAP_OUT, interpolation=config.PLOTTING_INTERPOLATION(
+            config.CHANNELS_OUTPUT), vmin=vmin, vmax=vmax)
         axs[(row + 2) % 3, col].set_title(f"Target {i+1}")
         axs[(row + 2) % 3, col].axis('off')
-
+        label = ds.get_filenames(y[i], "Unknown")
+        axs[(row + 2) % 3, col].text(0, 0, label, color='white', backgroundcolor='black')
+        
     # Add a colorbar to the right of the figure
     if config.CBAR and config.CHANNELS_OUTPUT == 1:
         fig.subplots_adjust(right=0.85)  # Make room for the colorbar
@@ -413,7 +392,7 @@ def save_examples(
         sm = plt.cm.ScalarMappable(cmap=config.CMAP_OUT, norm=norm)
         sm.set_array([])
         fig.colorbar(sm, cax=cbar_ax)
-
+    
     if task == 'segmentation':
         # TODO: make this dynamic based on the classes
         # add a legend for the segmentation task
@@ -427,22 +406,22 @@ def save_examples(
             1: "625nm",
             2: "605nm"
         }
-
+        
         legend_elements = [
             plt.Line2D([0], [0], marker='o', color='w', label=label_names[i],
-                       markerfacecolor=[c / 255 for c in color_map[i]],
-                       markersize=10) for i in range(3)
+                          markerfacecolor=[c / 255 for c in color_map[i]],
+                            markersize=10) for i in range(3)
         ]
-
+        
         # Add the legend to the figure
         fig.legend(handles=legend_elements, loc='center right')
+            
 
     plt.tight_layout()
     plt.savefig(f"{folder}/comparison_epoch_{epoch}.png")
     plt.close('all')
 
     model.train()
-
 
 def save_checkpoint(model, optimizer, filename):
     '''
@@ -608,15 +587,14 @@ class LoggerOrDefault():
 
         return cls._logger
 
-
 class Losses():
     def __init__(self):
         self.losses = []
         self.stats = []
-
+    
     def append(self, loss):
         self.losses.append(loss)
-
+    
     def plot(self, output_path=None):
         '''
         Plot the statistics of the losses
@@ -624,22 +602,23 @@ class Losses():
         import matplotlib.pyplot as plt
         x_axis = range(len(self.stats))
         y_loss, y_mean, y_std = zip(*self.stats)
-
+        
         plt.plot(x_axis, y_loss, label='Total Loss')
         plt.plot(x_axis, y_mean, label='Mean Loss')
         plt.plot(x_axis, y_std, label='Std Loss')
         plt.legend()
         if output_path:
             plt.savefig(output_path)
-            plt.close()  # Close the plot
+            plt.close() # Close the plot
         else:
             plt.show()
-
+        
+        
     def summarize(self, reset=True):
         '''
         Summarize the losses by calculating the total, mean, and std of the losses
         The results are stored in the stats attribute
-
+        
         Parameters:
         ----------
         reset: bool, Default: True
@@ -651,7 +630,7 @@ class Losses():
         self.stats.extend(zip(total_losses, mean_loss, std_loss))
         if reset:
             self.losses = []
-
+        
     def get_stats(self, epoch=-1):
         '''
         Get the stats for a particular epoch
@@ -663,7 +642,7 @@ class Losses():
             Default: -1 (last epoch)
         '''
         return self.stats[epoch]
-
+    
     def __str__(self) -> str:
         '''
         Convert the losses to a string summary
@@ -671,104 +650,10 @@ class Losses():
         summary = ""
         for i, total, mean, std in enumerate(self.stats):
             summary += f"Epoch {i} - Total: {total}, Mean: {mean}, Std: {std}\n"
-
+        
         return summary
 
     # overwrite the += operator
     def __iadd__(self, other):
         self.append(other)
         return self
-
-
-def load_datasets(json_file, input_dir, target_dir, tmp, match="*", **kwargs):
-    '''
-    Load a dataset from a JSON file
-
-    Parameters:
-    ----------
-    json_file: str
-        Path to the JSON file
-
-    Returns:
-    --------
-    torch.utils.data.Dataset
-    '''
-    import json
-    import tempfile
-    import shutil
-    import os
-    from dataset import Dataset
-    # Load the data from the JSON file
-
-    with open(json_file, "r") as f:
-        data = json.load(f)
-    # Create a dataset from the data
-    val_inputs, val_targets = sorted(
-        data["val_inputs"]), sorted(
-        data["val_targets"])
-    train_inputs, train_targets = sorted(
-        data["train_inputs"]), sorted(
-        data["train_targets"])
-    # copy the input and target data to a temporary directory
-    if os.path.exists(tmp):
-        shutil.rmtree(tmp)
-    os.makedirs(tmp)
-
-    def random_indices(lst, n):
-        import random
-        indices = random.sample(range(len(lst) - 1), n)
-        return indices
-
-    indices = random_indices(val_inputs, 100)
-    if len(val_inputs) > 100:
-        val_inputs = [val_inputs[i]
-                      for i in indices]
-        val_targets = [val_targets[i]
-                       for i in indices]
-    if len(train_inputs) > 100:
-        train_inputs = [train_inputs[i]
-                        for i in indices]
-        train_targets = [train_targets[i]
-                         for i in indices]
-
-    val_tmpdir = tempfile.mkdtemp(dir=tmp)
-    train_tmpdir = tempfile.mkdtemp(dir=tmp)
-    for i, (val_input, val_target, train_input, train_target) in tqdm(enumerate(
-            zip(val_inputs, val_targets, train_inputs, train_targets)), total=len(indices)):
-        input_basename = os.path.basename(val_input)
-        target_basename = os.path.basename(val_target)
-        input_path = os.path.join(input_dir, input_basename)
-        target_path = os.path.join(target_dir, target_basename)
-        try:
-            shutil.copy(input_path, os.path.join(val_tmpdir, input_basename))
-            shutil.copy(target_path, os.path.join(val_tmpdir, target_basename))
-        except FileNotFoundError:
-            print(f"File not found: {input_path} or {target_path}")
-            if os.path.exists(os.path.join(val_tmpdir, input_basename)):
-                os.remove(os.path.join(val_tmpdir, input_basename))
-            if os.path.exists(os.path.join(val_tmpdir, target_basename)):
-                os.remove(os.path.join(val_tmpdir, target_basename))
-        input_basename = os.path.basename(train_input)
-        target_basename = os.path.basename(train_target)
-        input_path = os.path.join(input_dir, input_basename)
-        target_path = os.path.join(target_dir, target_basename)
-        try:
-            shutil.copy(input_path, os.path.join(train_tmpdir, input_basename))
-            shutil.copy(target_path, os.path.join(
-                train_tmpdir, target_basename))
-        except FileNotFoundError:
-            print(f"File not found: {input_path} or {target_path}")
-            if os.path.exists(os.path.join(train_tmpdir, input_basename)):
-                os.remove(os.path.join(train_tmpdir, input_basename))
-            if os.path.exists(os.path.join(train_tmpdir, target_basename)):
-                os.remove(os.path.join(train_tmpdir, target_basename))
-    train_ds = Dataset(
-        os.path.join(train_tmpdir, f'*.tif'),
-        os.path.join(train_tmpdir, f'*.npz'),
-        **kwargs)
-    val_ds = Dataset(
-        os.path.join(val_tmpdir, f"{match}.tif"),
-        os.path.join(val_tmpdir, f"{match}.npz"),
-        **kwargs)
-
-    return train_ds, val_ds

@@ -1,0 +1,43 @@
+device = 'cpu'
+
+[directories]
+root = 'D:\CZI_scope\code\ml_models\unet\segmentation'
+data = 'D:\CZI_scope\code\ml_models\unet\segmentation\data'
+results = 'D:\CZI_scope\code\ml_models\unet\segmentation\results'
+inputs = 'D:\CZI_scope\code\preprocess_training\tifs'
+targets = 'D:\CZI_scope\code\preprocess_training\masks'
+create = true
+
+[files]
+model = 'D:\CZI_scope\code\ml_models\unet\unet.pth.tar'
+dataset = 'D:\CZI_scope\code\ml_models\unet\data\dataset.tar'
+
+[training]
+batch_size = 16
+epochs = 10
+lr = 1e-3
+train_ratio = 0.8 # 80% of the data is used for training
+optimizer = 'adam'
+scheduler = 'plateau'
+
+[training.optimizer_params]
+# Any parameter that is not specified will be set to the default value
+
+[training.scheduler_params]
+# Any parameter that is not specified will be set to the default value
+patience = 3
+factor = 0.1
+
+
+[model]
+in_channels = 1
+out_channels = 3
+features = [64, 128, 256, 512]
+
+[plotting]
+save = true
+classes = ['background', '625', '605']
+labels = [0, 1, 2]
+
+    
+        

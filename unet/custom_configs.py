@@ -20,8 +20,12 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def TARGET_READER(path: str, _: int):
     # Load the mask from a .npy file
-    return np.load(path)['mask']
+    x = np.load(path)['mask']
 
+    # Map class labels: -1 -> 1 (class of interest 1), 0 -> 0 (background), 1 -> 2 (class of interest 2)
+    target_mapped = np.where(x == -1, 1, np.where(x == 0, 0, 2))
+
+    return target_mapped
 
 
 def INPUT_READER(x, channels):
@@ -163,8 +167,12 @@ DATASET_TO_FLOAT = False  # Handle type conversion independently in the transfor
 SKIP_CHANNEL_EXPANSION = True  # Skip adding a channel dimension if not present
 SAVE_DST = True
 DST_SAVE_DIR = "/scratch/general/nfs1/u0977428/Training/unet/datasets"  # directory to save the datasets
-
 LEARNING_RATE = 1e-4
+
+
+LOAD_MODEL = True  # set to True if you want to load a pre-trained model
+CHECKPOINT = r"unet.pth.tar"
+EXAMPLES_DIR = r'results'
 
 LOAD_MODEL = False  # set to True if you want to load a pre-trained model
 CHECKPOINT = r"unet.pth.tar"

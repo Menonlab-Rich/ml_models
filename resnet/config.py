@@ -6,6 +6,7 @@ import albumentations as A
 import numpy as np
 from glob import glob
 from dataset import GenericDataLoader
+import cv2
 
 _cwd = getcwd()
 ROOT_DIR = path.dirname(_cwd)
@@ -83,10 +84,10 @@ INPUT_TRANSFORMS = A.Compose([
    A.GaussNoise(var_limit=(1e-4, 1e-3), p=.5),
 ])
 
-VAL_TRANSFORMS = ([
+VAL_TRANSFORMS = A.Compose([
     A.ToFloat(always_apply=True),
     A.LongestMaxSize(max_size=256, always_apply=True),
-    A.PadIfNeeded(256, 256, always_apply=True),
+    A.PadIfNeeded(256, 256, always_apply=True, border_mode=cv2.BORDER_CONSTANT, value=0),
 ])
 
  
