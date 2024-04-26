@@ -9,6 +9,7 @@ from os import path
 from torch.utils.data import DataLoader as Dataloader
 import logging
 from torch.cuda.amp import GradScaler, autocast
+from tqdm import tqdm
 
 class Trainer(train.BaseTrainer):
     def __init__(self, model: nn.Module, dataset: GenericDataset, config: dict):
@@ -88,7 +89,8 @@ class Trainer(train.BaseTrainer):
     def train_epoch(self):
         self.model.train()
         self.model.to(self.device)
-        for inputs, targets in self.train_loader:
+        training_loop = tqdm(self.train_loader, total=len(self.train_loader))
+        for inputs, targets in training_loop:
             inputs, targets = inputs.to(self.device), targets.to(self.device)
             self.optimizer.zero_grad()
             with autocast():
@@ -97,6 +99,7 @@ class Trainer(train.BaseTrainer):
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
+            training_loop.set_postfix({'loss': loss.item()})
 
     def evaluate(self):
         return self.evaluator.evaluate()  # Evaluate the model
