@@ -8,8 +8,8 @@ from glob import glob
 from dataset import GenericDataLoader
 
 _cwd = getcwd()
-# ROOT_DIR = path.dirname(_cwd)
-ROOT_DIR = r'D:\CZI_scope\code\ml_models\resnet'
+ROOT_DIR = path.dirname(_cwd)
+#ROOT_DIR = r'D:\CZI_scope\code\ml_models\resnet'
 DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 MULTI_GPU = False
 INPUT_PATH = '/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/'
@@ -21,14 +21,14 @@ NUM_CLASSES = 2
 CLASS_MAPPING = {0: '605', 1: '625'}
 PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
 NUM_CHANNELS = 1
-#DST_SAVE_DIR = path.join(_cwd, 'data')
-DST_SAVE_DIR = r'D:\CZI_scope\code\ml_models\resnet\data'
+DST_SAVE_DIR = path.join(_cwd, 'data')
+#DST_SAVE_DIR = r'D:\CZI_scope\code\ml_models\resnet\data'
 
 class InputLoader(GenericDataLoader):
     def __init__(self, directory):
         self.directory = directory
         files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
-        self.files = files[1:3]
+        self.files = files
     
     def __len__(self):
         return len(self.files)
@@ -52,7 +52,6 @@ class InputLoader(GenericDataLoader):
 class TargetLoader(GenericDataLoader):
     def __init__(self, directory):
         files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
-        files = files[1:3]
         self.classes = [1 if x[:3] == CLASS_MAPPING[1] else 0 for x in files]
 
     def __len__(self):
