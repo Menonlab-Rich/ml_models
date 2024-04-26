@@ -151,7 +151,11 @@ class GenericDataset(data.Dataset):
             train_transforms = self.transform['train']
             # Apply transformation to input if specified
             if 'input' in train_transforms:
-                inp = train_transforms['input'](inp)
+                # check if input expects more than one argument
+                if len(train_transforms['input'].__code__.co_varnames) > 1:
+                    inp, target = train_transforms['input'](inp, target)
+                else:
+                    inp = train_transforms['input'](inp)
 
             # Apply transformation to target if specified
             if 'target' in train_transforms:
@@ -161,7 +165,10 @@ class GenericDataset(data.Dataset):
             val_transforms = self.transform['val']
             # Apply transformation to input if specified
             if 'input' in val_transforms:
-                inp = val_transforms['input'](inp)
+                if len(val_transforms['input'].__code__.co_varnames) > 1:
+                    inp, target = val_transforms['input'](inp, target)
+                else:
+                    inp = val_transforms['input'](inp)
 
             # Apply transformation to target if specified
             if 'target' in val_transforms:

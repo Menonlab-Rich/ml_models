@@ -11,10 +11,12 @@ import toml
 
 class Config(BaseConfigHandler):
     def __init__(self):
-
+        from cv2 import BORDER_CONSTANT
         INPUT_TRANSFORMS = A.Compose([
             # Add transforms here to preprocess the input data
             A.ToFloat(always_apply=True),
+            A.LongestMaxSize(max_size=256, always_apply=True),
+            A.PadIfNeeded(256, 256, always_apply=True, border_mode=BORDER_CONSTANT, value=0),
             # Add transforms here to augment the input data for training
             A.RandomBrightnessContrast(p=.5),
             A.GaussNoise(var_limit=(1e-4, 1e-3), p=.5),
@@ -22,16 +24,25 @@ class Config(BaseConfigHandler):
 
         VAL_TRANSFORMS = A.Compose([
             A.ToFloat(always_apply=True),
+            A.LongestMaxSize(max_size=256, always_apply=True),
+            A.PadIfNeeded(256, 256, always_apply=True),
         ])
-
+        
+        def train_input_transform(x, y):
+            trasformed = INPUT_TRANSFORMS(image=x, mask=y)
+            return trasformed['image'], trasformed['mask']
+        def val_input_transform(x, y):
+            trasformed = VAL_TRANSFORMS(image=x, mask=y)
+            return trasformed['image'], trasformed['mask']
+        
         self.config = {
             'transform': {
                 'train': {
-                    'input': lambda x: INPUT_TRANSFORMS(image=x)['image'],
+                    'input': train_input_transform,
                     'target': lambda y: torch.tensor(y, dtype=torch.long)
                 },
                 'val': {
-                    'input': lambda x: VAL_TRANSFORMS(image=x)['image'],
+                    'input': val_input_transform,
                     'target': lambda y: torch.tensor(y, dtype=torch.long)
                 }
             },
