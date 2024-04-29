@@ -35,11 +35,12 @@ class utils(BaseUtilities):
     def save_checkpoint(
         self, model: nn.Module, optimizer: torch.optim.Optimizer,
             epoch: int, name: str):
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()
-        }, name)
+        with open(name, 'wb') as f:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict()
+            }, f)
 
     @classmethod
     def load_checkpoint(
