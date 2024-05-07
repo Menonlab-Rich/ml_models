@@ -62,5 +62,5 @@ def plot_examples():
         plt.close() # close the figure to avoid memory leaks
         
 if __name__ == '__main__':
-    predict()
-    # plot_examples()
+    # predict()
+    plot_examples()

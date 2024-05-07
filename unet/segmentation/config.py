@@ -129,9 +129,9 @@ config = Config()
 config.load(path.join(path.dirname(__file__), 'config.toml'))
 _input_loader = InputLoader(config['directories']['inputs'])
 _target_loader = TargetLoader(config['directories']['targets'])
-
-cross_entropy = nn.CrossEntropyLoss(label_smoothing=0.1, weight=[0, 1, 1])
-jaccard = JaccardLoss(num_classes=config['model']['out_channels'], weights=[0, 1, 1], smoothing=1e-6) # 0 for background, 1 for the other classes
+weights = torch.tensor([0.1, 1, 1], dtype=torch.float32)
+cross_entropy = nn.CrossEntropyLoss(label_smoothing=0.1, weight=weights)
+jaccard = JaccardLoss(num_classes=config['model']['out_channels'], weights=weights, smoothing=1e-6) # 0 for background, 1 for the other classes
 loss_fn = CrossEntropyJaccardLoss(jaccard, cross_entropy) # combine the two losses
 
 config['input_loader'] = _input_loader
