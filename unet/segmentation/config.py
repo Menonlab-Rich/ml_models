@@ -134,4 +134,5 @@ if __name__ == 'config':
         from os import makedirs
         makedirs(config['directories']['data'], exist_ok=True)
         makedirs(config['directories']['results'], exist_ok=True)
+        makedirs(config['directories']['model'], exist_ok=True)
         print("Directories created")

@@ -81,7 +81,7 @@ class Trainer(train.BaseTrainer):
                 best_loss = val_loss
                 utils.save_checkpoint(
                     self.model, self.optimizer, epoch, self.config
-                    ['directories']['model'])
+                    ['directories']['model'] + '/model.pth.tar')
                 self.logger.info('Model saved')
 
         self.plot()
@@ -106,7 +106,7 @@ class Trainer(train.BaseTrainer):
 
     def plot(self):
         self.evaluator.plot(metrics='both', output_path=path.join(
-            self.config['directories']['predictions'], 'metrics.png'))
+            self.config['directories']['results'], 'metrics.png'))
 
 
 if __name__ == '__main__':

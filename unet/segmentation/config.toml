@@ -1,19 +1,20 @@
-device = 'cpu'
+device = 'cuda'
 
 [directories]
-root = 'D:\CZI_scope\code\ml_models\unet\segmentation'
-data = 'D:\CZI_scope\code\ml_models\unet\segmentation\data'
-results = 'D:\CZI_scope\code\ml_models\unet\segmentation\results'
-inputs = 'D:\CZI_scope\code\preprocess_training\tifs'
-targets = 'D:\CZI_scope\code\preprocess_training\masks'
+root = '.'
+data = 'data'
+results = 'results'
+inputs = '/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/'
+targets = '/scratch/general/nfs1/u0977428/transfer/preprocess/masks/'
+model = 'model'
 create = true
 
 [files]
-model = 'D:\CZI_scope\code\ml_models\unet\unet.pth.tar'
-dataset = 'D:\CZI_scope\code\ml_models\unet\data\dataset.tar'
+model = 'model.tar'
+dataset = 'dst.tar'
 
 [training]
-batch_size = 16
+batch_size = 32
 epochs = 10
 lr = 1e-3
 train_ratio = 0.8 # 80% of the data is used for training
