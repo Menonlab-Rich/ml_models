@@ -6,7 +6,10 @@ import albumentations as A
 import numpy as np
 from base.dataset import GenericDataLoader
 from base.config import BaseConfigHandler
+from base.loss import CrossEntropyJaccardLoss, JaccardLoss
 import toml
+
+
 
 
 class Config(BaseConfigHandler):
@@ -25,7 +28,7 @@ class Config(BaseConfigHandler):
         VAL_TRANSFORMS = A.Compose([
             A.ToFloat(always_apply=True),
             A.LongestMaxSize(max_size=256, always_apply=True),
-            A.PadIfNeeded(256, 256, always_apply=True),
+            A.PadIfNeeded(256, 256, always_apply=True, border_mode=BORDER_CONSTANT, value=0),
         ])
         
         def train_input_transform(x, y):
@@ -85,8 +88,10 @@ class InputLoader(GenericDataLoader):
         for file in self.files:
             yield self._read(file)
 
-    def get_ids(self, i=None):
-        if i is not None:
+    def get_ids(self, i=None, n=None):
+        if i is not None and n is not None:
+            return self.files[i:i+n]
+        elif i is not None:
             return self.files[i]
         return self.files
 
@@ -125,9 +130,14 @@ config.load(path.join(path.dirname(__file__), 'config.toml'))
 _input_loader = InputLoader(config['directories']['inputs'])
 _target_loader = TargetLoader(config['directories']['targets'])
 
+cross_entropy = nn.CrossEntropyLoss(label_smoothing=0.1, weight=[0, 1, 1])
+jaccard = JaccardLoss(num_classes=config['model']['out_channels'], weights=[0, 1, 1], smoothing=1e-6) # 0 for background, 1 for the other classes
+loss_fn = CrossEntropyJaccardLoss(jaccard, cross_entropy) # combine the two losses
+
 config['input_loader'] = _input_loader
 config['target_loader'] = _target_loader
-config['loss_fn'] = nn.CrossEntropyLoss(label_smoothing=0.1)
+config['loss_fn'] = loss_fn
+
 
 if __name__ == 'config':
     if config['directories']['create']:

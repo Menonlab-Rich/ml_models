@@ -1,0 +1,13 @@
+  0%|          | 0/2267 [00:00<?, ?it/s]/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/model.py:81: UserWarning: x is larger than 256x256, this may cause memory issues
+  warnings.warn(
+  0%|          | 0/2267 [00:36<?, ?it/s]
+Traceback (most recent call last):
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 127, in <module>
+    trainer.train()
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 77, in train
+    self.train_epoch()
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 99, in train_epoch
+    self.scaler.scale(loss).backward()
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/cuda/amp/grad_scaler.py", line 203, in scale
+    assert outputs.is_cuda or outputs.device.type == "xla"
+AssertionError

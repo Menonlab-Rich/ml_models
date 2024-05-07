@@ -3,7 +3,7 @@ import torch
 from torch.utils import data as td
 import numpy as np
 from base.dataset import GenericDataset
-from typing import Any
+from typing import Sequence, Tuple
 import torch.nn as nn
 from matplotlib import pyplot as plt
 from typing import Dict, Literal, List
@@ -28,8 +28,11 @@ class utils(BaseUtilities):
         return ds_obj['inputs'], ds_obj['targets']
 
     @classmethod
-    def prepare_tensor_for_plotting(self, tensor: torch.Tensor) -> np.ndarray:
-        return tensor.permute(1, 2, 0).cpu().numpy()
+    def prepare_img_tensors_for_plotting(
+            self, *tensors: torch.Tensor) -> np.ndarray:
+
+        imgs = [t.permute(1, 2, 0).cpu().detach().numpy() for t in tensors]
+        return imgs if len(imgs) > 1 else imgs[0]
 
     @classmethod
     def save_checkpoint(
@@ -120,9 +123,36 @@ class utils(BaseUtilities):
         else:
             plt.show()
 
+    @classmethod
+    def prepare_label_tensors_for_plotting(cls, colors: Sequence[Tuple[int]], *labels: torch.Tensor) -> List[np.ndarray]:
+        """
+        Convert list of label tensors to RGB color-coded arrays.
+
+        Args:
+        labels: Variable-length list of torch tensors, each containing predicted class indices.
+
+        Returns:
+        A list of numpy arrays, each corresponding to the input tensors color-coded.
+        """
+        def tensor_to_rgb(tensor: torch.Tensor) -> np.ndarray:
+            # Create an empty RGB array
+            height, width = tensor.shape
+            rgb_image = np.zeros((height, width, 3), dtype=np.uint8)
+
+            for label_index, color in enumerate(colors):
+                mask = tensor == label_index
+                rgb_image[mask] = color
+
+            return rgb_image
+
+        # Apply `tensor_to_rgb` for each label tensor
+        imgs = [tensor_to_rgb(label.cpu().detach().numpy()) for label in labels]
+        return imgs if len(imgs) > 1 else imgs[0]
+
 
 class Evaluator:
-    def __init__(self, model: nn.Module, loader: td.DataLoader, loss_fn: nn.Module, device: torch.device, config: dict):
+    def __init__(self, model: nn.Module, loader: td.DataLoader,
+                 loss_fn: nn.Module, device: torch.device, config: dict):
         self.model = model
         self.loader = loader
         self.loss_fn = loss_fn
@@ -130,33 +160,65 @@ class Evaluator:
         self.config = config
         self.percent_correct_per_epoch = []
         self.losses_per_epoch = []
-        
+
         # Prepare OneHotEncoder for the categories specified in config
-        self.encoder = OneHotEncoder(categories=[self.config['plotting']['labels']])
-        self.encoder.fit(np.array(self.config['plotting']['labels']).reshape(-1, 1))
+        self.encoder = OneHotEncoder(
+            categories=[self.config['plotting']['labels']])
+        self.encoder.fit(
+            np.array(self.config['plotting']['labels']).reshape(-1, 1))
+
+    def jaccard_score(
+            self, predictions, ground_truths, skip_label=None, smoothing=1e-6):
+        # Ensure data is in numpy format
+        if isinstance(predictions, torch.Tensor):
+            predictions = predictions.cpu().numpy()
+        if isinstance(ground_truths, torch.Tensor):
+            ground_truths = ground_truths.cpu().numpy()
+
+        # Calculate intersections and unions across all classes
+        intersection = np.logical_and(
+            predictions, ground_truths).sum(
+            axis=(2, 3))  # Sum over H and W dimensions
+        union = np.logical_or(predictions, ground_truths).sum(axis=(2, 3))
+
+        # Apply smoothing and compute Jaccard index (IoU) for each class and sample
+        iou = (intersection + smoothing) / (union + smoothing)
+
+        # Handle skip_label by setting its score to NaN and then use np.nanmean to calculate mean while ignoring NaNs
+        if skip_label is not None:
+            iou[:, skip_label] = np.nan
+
+        # Return the mean score across all classes and samples, ignoring NaNs if skip_label is used
+        return np.nanmean(iou)
 
     def evaluate(self) -> float:
+        from tqdm import tqdm
         self.model.eval()
         self.model.to(self.device)
         running_loss = 0.0
         scores = []
-        
+
         with torch.no_grad():
-            for inputs, targets in self.loader:
-                inputs, targets = inputs.to(self.device), targets.to(self.device)
+            loader = tqdm(self.loader, desc='Evaluating')
+            for inputs, targets in loader:
+                inputs, targets = inputs.to(
+                    self.device), targets.to(
+                    self.device)
                 outputs = self.model(inputs)
                 loss = self.loss_fn(outputs, targets)
                 running_loss += loss.item()
 
-                predictions = torch.argmax(outputs, dim=1)  # Assuming outputs are logits
+                # Assuming outputs are logits
+                predictions = torch.argmax(outputs, dim=1)
                 scores.extend(self.accuracy(predictions, targets))
-                
+                loader.postfix = f'Loss: {loss.item()}, Accuracy: {np.mean(scores)}'
+
         average_score = np.mean(scores)
         self.percent_correct_per_epoch.append(average_score)
         average_loss = running_loss / len(self.loader)
         self.losses_per_epoch.append(average_loss)
         return average_loss
-    
+
     def accuracy(self, predictions, ground_truths) -> List[float]:
         '''
         Return the accuracy of the model as a Jaccard Index.
@@ -164,18 +226,23 @@ class Evaluator:
         jaccard_scores = []
         predictions = predictions.cpu().numpy().flatten()
         ground_truths = ground_truths.cpu().numpy().flatten()
-        
+
         predictions_encoded = self.encoder.transform(predictions.reshape(-1, 1))
-        ground_truths_encoded = self.encoder.transform(ground_truths.reshape(-1, 1))
-        
-        score = jaccard_score(ground_truths_encoded, predictions_encoded, average='samples')
+        ground_truths_encoded = self.encoder.transform(
+            ground_truths.reshape(-1, 1))
+
+        # Skip the background class
+        score = self.jaccard_score(
+            ground_truths_encoded, predictions_encoded, skip_label=0)
         jaccard_scores.append(score)
-        
+
         return jaccard_scores
-            
+
     def plot(self, metrics='both', output_path: str = None):
-        fig, ax = plt.subplots(2 if metrics == 'both' else 1, 1, figsize=(10, 5 if metrics == 'both' else 10))
-        
+        fig, ax = plt.subplots(
+            2 if metrics == 'both' else 1, 1,
+            figsize=(10, 5 if metrics == 'both' else 10))
+
         if metrics in ('both', 'accuracy'):
             ax_acc = ax[0] if metrics == 'both' else ax
             ax_acc.plot(self.percent_correct_per_epoch)
@@ -195,81 +262,3 @@ class Evaluator:
             plt.savefig(output_path)
         else:
             plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
