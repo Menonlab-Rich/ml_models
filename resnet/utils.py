@@ -7,17 +7,28 @@ from typing import Any
 import torch.nn as nn
 from matplotlib import pyplot as plt
 from typing import Dict, Literal
+from tqdm import tqdm
+import logging
 
 
 class Evaluator:
     def __init__(self, model: nn.Module, loader: td.DataLoader,
-                 loss_fn: nn.Module, device: torch.device):
+                 loss_fn: nn.Module, device: torch.device, x_axis: Literal['epoch', 'file'] = 'epoch',
+                 report=False, report_path=None):
+        if x_axis not in ('epoch', 'file'):
+            raise ValueError('x_axis must be either "epoch" or "file"')
         self.model = model
         self.loader = loader
         self.loss_fn = loss_fn
         self.device = device
         self.percent_correct_per_epoch = []
         self.losses_per_epoch = []
+        self.x_axis = x_axis.lower() # Ensure the x_axis is lowercase for comparison
+        self.report = report
+        self.report_path = report_path
+
+        if self.report:
+            logging.basicConfig(filename=self.report_path, level=logging.INFO, format='%(asctime)s - %(message)s')
 
     def evaluate(self) -> float:
         self.model.eval()
@@ -26,8 +37,9 @@ class Evaluator:
         self.loader.dataset.return_identifiers = False
         total = 0
         total_correct = 0
+        tqdm_loader = tqdm(self.loader)
         with torch.no_grad():
-            for inputs, targets in self.loader:
+            for i, (inputs, targets) in enumerate(tqdm_loader):
                 inputs, targets = inputs.to(
                     self.device), targets.to(
                     self.device)
@@ -37,7 +49,19 @@ class Evaluator:
                 total += targets.size(0)
                 total_correct += (torch.argmax(outputs, 1)
                                   == targets).sum().item()
-        self.percent_correct_per_epoch.append(total_correct / total)
+                tqdm_loader.set_postfix({'loss': loss.item(), 'accuracy': total_correct / total})
+                if self.report:
+                    logging.info(f'Batch {i}: Loss: {loss.item()}, Accuracy: {total_correct / total}')
+                    # Get the file names for the batch
+                    batch_size = inputs.size(0)
+                    ids = self.loader.dataset.input_loader.get_ids(i*batch_size, batch_size)
+                    files = '\n'.join(ids)
+                    logging.info(f'Files: \n{files}')
+                if self.x_axis == 'file':
+                    self.percent_correct_per_epoch.append(total_correct / total)
+                    self.losses_per_epoch.append(loss.item())
+        if self.x_axis == 'epoch':
+            self.percent_correct_per_epoch.append(total_correct / total)
         loss = running_loss / len(self.loader)
         self.losses_per_epoch.append(loss)
         return loss

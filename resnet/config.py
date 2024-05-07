@@ -12,7 +12,7 @@ _cwd = getcwd()
 ROOT_DIR = r'D:\CZI_scope\code\ml_models\resnet'
 DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 MULTI_GPU = False
-INPUT_PATH = r'D:\CZI_scope\code\preprocess_training\tifs'
+INPUT_PATH = r'D:\CZI_scope\code\preprocess_training\validation'
 # MODEL_PATH = path.join(_cwd, 'model.tar')
 MODEL_PATH = r'D:\CZI_scope\code\ml_models\resnet\model.tar'
 EPOCHS = 10
@@ -24,12 +24,14 @@ PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
 NUM_CHANNELS = 1
 #DST_SAVE_DIR = path.join(_cwd, 'data')
 DST_SAVE_DIR = r'D:\CZI_scope\code\ml_models\resnet\data'
+REPORT_PATH = path.join(_cwd, 'logs', 'resnet_prediction_report.txt')
+
+
 
 class InputLoader(GenericDataLoader):
     def __init__(self, directory):
         self.directory = directory
-        files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
-        self.files = files[1:3]
+        self.files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
     
     def __len__(self):
         return len(self.files)
@@ -41,9 +43,9 @@ class InputLoader(GenericDataLoader):
         for file in self.files:
             yield self._read(file)
     
-    def get_ids(self, i=None):
+    def get_ids(self, i=None, batch_size=1):
         if i is not None:
-            return self.files[i]
+            return self.files[i:i+batch_size - 1] # return the file name(s) for the index and batch size
         return self.files
     
     def _read(self, file):
@@ -53,8 +55,7 @@ class InputLoader(GenericDataLoader):
 class TargetLoader(GenericDataLoader):
     def __init__(self, directory):
         files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
-        files = files[1:3]
-        self.classes = [1 if x[:3] == CLASS_MAPPING[1] else 0 for x in files]
+        self.classes = [1 if x[:3] == CLASS_MAPPING[0] else 1 for x in files]
 
     def __len__(self):
         return len(self.classes)

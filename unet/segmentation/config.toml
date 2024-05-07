@@ -4,13 +4,13 @@ device = 'cpu'
 root = 'D:\CZI_scope\code\ml_models\unet\segmentation'
 data = 'D:\CZI_scope\code\ml_models\unet\segmentation\data'
 results = 'D:\CZI_scope\code\ml_models\unet\segmentation\results'
-inputs = 'D:\CZI_scope\code\preprocess_training\tifs'
-targets = 'D:\CZI_scope\code\preprocess_training\masks'
+inputs = 'D:\CZI_scope\code\preprocess_training\validation'
+targets = 'D:\CZI_scope\code\preprocess_training\validation\masks'
 create = true
 
 [files]
-model = 'D:\CZI_scope\code\ml_models\unet\unet.pth.tar'
-dataset = 'D:\CZI_scope\code\ml_models\unet\data\dataset.tar'
+model = 'D:\CZI_scope\code\ml_models\unet\segmentation\model.pth.tar'
+dataset = 'D:\CZI_scope\code\ml_models\unet\segmentation\data\dataset.tar'
 
 [training]
 batch_size = 16
