@@ -190,7 +190,7 @@ class Evaluator:
         '''
         self.model.eval()
         with torch.no_grad():
-            jaccard_score = self.jaccard.forward(predictions, ground_truths).item() + 1. # Add 1 to convert to accuracy
+            jaccard_score = self.jaccard.forward(predictions, ground_truths) + 1 # Add 1 to convert to accuracy
         self.model.train()
         return jaccard_score * 100
 
