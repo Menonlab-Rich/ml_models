@@ -160,15 +160,25 @@ class Evaluator:
         self.percent_correct_per_epoch = []
         self.losses_per_epoch = []
 
-    def jaccard_score(self, predictions, ground_truths, skip_label=None, smoothing=1e-6):
+    def jaccard_score(
+            self, predictions, ground_truths, skip_label=None, smoothing=1e-6):
         # Ensure predictions are one-hot encoded
-        if len(predictions.shape) == 2:  # Assuming shape [N, C] for class labels
-            predictions = F.one_hot(predictions.to(torch.int64), num_classes=ground_truths.shape[1])
-        elif len(predictions.shape) == 3:  # Assuming shape [N, H, W] for class labels
-            predictions = F.one_hot(predictions.to(torch.int64), num_classes=ground_truths.shape[1]).permute(0, 3, 1, 2)
-        
+        if len(
+                predictions.shape) == 2:  # Assuming shape [N, C] for class labels
+            predictions = F.one_hot(
+                predictions.to(torch.int64),
+                num_classes=ground_truths.shape[1])
+        # Assuming shape [N, H, W] for class labels
+        elif len(predictions.shape) == 3:
+            predictions = F.one_hot(
+                predictions.to(torch.int64),
+                num_classes=ground_truths.shape[1]).permute(
+                0, 3, 1, 2)
+
         # Calculate intersections and unions across all classes
-        intersection = torch.logical_and(predictions, ground_truths).sum(dim=(2, 3))  # Sum over H and W dimensions
+        intersection = torch.logical_and(
+            predictions, ground_truths).sum(
+            dim=(2, 3))  # Sum over H and W dimensions
         union = torch.logical_or(predictions, ground_truths).sum(dim=(2, 3))
 
         # Apply smoothing and compute Jaccard index (IoU) for each class and sample
@@ -178,7 +188,8 @@ class Evaluator:
         if skip_label is not None:
             iou[:, skip_label] = 0
             valid_classes = iou.shape[1] - 1  # Exclude skipped class
-            mean_iou = iou.sum(dim=1) / valid_classes  # Calculate mean while excluding skipped class
+            # Calculate mean while excluding skipped class
+            mean_iou = iou.sum(dim=1) / valid_classes
         else:
             mean_iou = iou.mean(dim=1)
 
@@ -218,16 +229,10 @@ class Evaluator:
         Return the accuracy of the model as a Jaccard Index.
         '''
         jaccard_scores = []
-        predictions = predictions.cpu().numpy().flatten()
-        ground_truths = ground_truths.cpu().numpy().flatten()
-
-        predictions_encoded = self.encoder.transform(predictions.reshape(-1, 1))
-        ground_truths_encoded = self.encoder.transform(
-            ground_truths.reshape(-1, 1))
 
         # Skip the background class
         score = self.jaccard_score(
-            ground_truths_encoded, predictions_encoded, skip_label=0)
+            ground_truths, predictions, skip_label=0)
         jaccard_scores.append(score)
 
         return jaccard_scores
