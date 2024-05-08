@@ -11,6 +11,7 @@ import logging
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
 
+
 class Trainer(train.BaseTrainer):
     def __init__(self, model: nn.Module, dataset: GenericDataset, config: dict):
         device: Literal['cuda', 'cpu'] = config['device']
@@ -33,7 +34,7 @@ class Trainer(train.BaseTrainer):
         self.loss_fn = config['loss_fn']
         self.device = device
         self.optimizer = optimizer
-        self.evaluator = None # Placeholder for the evaluator
+        self.evaluator = None  # Placeholder for the evaluator
         self.logger = logging.getLogger(__name__)
         self.scaler = GradScaler()
 
@@ -66,7 +67,8 @@ class Trainer(train.BaseTrainer):
                                      ['batch_size'],
                                      shuffle=False)
         self.evaluator = Evaluator(
-            self.model, self.val_loader, self.loss_fn, self.device, self.config)
+            self.model, self.val_loader, self.loss_fn, self.device, self.config,
+            [0, 1, 1])
 
     def train(self):
         self.setup()  # Setup the training process
@@ -96,13 +98,16 @@ class Trainer(train.BaseTrainer):
             with autocast():
                 outputs = self.model(inputs)
                 loss = self.loss_fn(outputs, targets)
+            accuracy = self.evaluator.accuracy(outputs, targets)
+            self.evaluator.update(loss, accuracy)
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
             training_loop.set_postfix({'loss': loss.item()})
 
     def evaluate(self):
-        return self.evaluator.evaluate()  # Evaluate the model
+        self.evaluator.evaluate()  # Evaluate the model
+        return self.evaluator.losses_per_epoch[-1] # Return the loss
 
     def plot(self):
         self.evaluator.plot(metrics='both', output_path=path.join(
