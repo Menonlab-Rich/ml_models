@@ -99,7 +99,7 @@ class Trainer(train.BaseTrainer):
                 outputs = self.model(inputs)
                 loss = self.loss_fn(outputs, targets)
             accuracy = self.evaluator.accuracy(outputs, targets)
-            self.evaluator.update(loss, accuracy)
+            self.evaluator.update(loss, accuracy, config['training']['batch_size'])
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
