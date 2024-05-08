@@ -184,15 +184,15 @@ class Evaluator:
         self.running_accuracy = 0.0
     
 
-    def accuracy(self, predictions, ground_truths) -> float:
+    def accuracy(self, predictions, ground_truths) -> torch.Tensor:
         '''
         Return the accuracy of the model as a Jaccard Index.
         '''
         self.model.eval()
         with torch.no_grad():
-            jaccard_score = self.jaccard.forward(predictions, ground_truths) + 1 # Add 1 to convert to accuracy
+            jaccard_score = 1 - self.jaccard.forward(predictions, ground_truths) # Calculate the Jaccard Index
         self.model.train()
-        return jaccard_score * 100
+        return jaccard_score
 
     def plot(self, metrics='both', output_path: str = None):
         fig, ax = plt.subplots(
