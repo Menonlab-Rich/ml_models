@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from typing import Dict, Literal, List
 from base.utilities import BaseUtilities
 import torch.nn.functional as F
+from base.loss import JaccardLoss
 
 
 class utils(BaseUtilities):
@@ -151,7 +152,8 @@ class utils(BaseUtilities):
 
 class Evaluator:
     def __init__(self, model: nn.Module, loader: td.DataLoader,
-                 loss_fn: nn.Module, device: torch.device, config: dict):
+                 loss_fn: nn.Module, device: torch.device, config: dict,
+                 weights=None):
         self.model = model
         self.loader = loader
         self.loss_fn = loss_fn
@@ -159,83 +161,38 @@ class Evaluator:
         self.config = config
         self.percent_correct_per_epoch = []
         self.losses_per_epoch = []
+        self.weights = [
+            1.0] * config['num_classes'] if weights is None else weights
+        self.weights = torch.tensor(
+            self.weights, dtype=torch.float32).to(device)
+        self.jaccard = JaccardLoss(len(self.weights), self.weights)
+        self.running_loss = 0.0
+        self.running_accuracy = 0.0
+        self.total_predictions = 0
 
-    def jaccard_score(
-            self, predictions, ground_truths, skip_label=None, smoothing=1e-6):
-        # Ensure predictions are one-hot encoded
-        if len(
-                predictions.shape) == 2:  # Assuming shape [N, C] for class labels
-            predictions = F.one_hot(
-                predictions.to(torch.int64),
-                num_classes=ground_truths.shape[1])
-        # Assuming shape [N, H, W] for class labels
-        elif len(predictions.shape) == 3:
-            predictions = F.one_hot(
-                predictions.to(torch.int64),
-                num_classes=ground_truths.shape[1]).permute(
-                0, 3, 1, 2)
-
-        # Calculate intersections and unions across all classes
-        intersection = torch.logical_and(
-            predictions, ground_truths).sum(
-            dim=(2, 3))  # Sum over H and W dimensions
-        union = torch.logical_or(predictions, ground_truths).sum(dim=(2, 3))
-
-        # Apply smoothing and compute Jaccard index (IoU) for each class and sample
-        iou = (intersection + smoothing) / (union + smoothing)
-
-        # Handle skip_label by setting its score to zero and then calculating the mean
-        if skip_label is not None:
-            iou[:, skip_label] = 0
-            valid_classes = iou.shape[1] - 1  # Exclude skipped class
-            # Calculate mean while excluding skipped class
-            mean_iou = iou.sum(dim=1) / valid_classes
-        else:
-            mean_iou = iou.mean(dim=1)
-
-        # Return the mean score across all samples
-        return mean_iou.mean().item()
+    def update(self, loss: torch.Tensor, accuracy: torch.Tensor, batch_size: int):
+        self.running_loss += loss.item()
+        self.running_accuracy += accuracy.item()
+        self.total_predictions += batch_size
 
     def evaluate(self) -> float:
-        from tqdm import tqdm
-        self.model.eval()
-        self.model.to(self.device)
-        running_loss = 0.0
-        scores = []
+        avg_loss = self.running_loss / self.total_predictions
+        avg_accuracy = self.running_accuracy / self.total_predictions
+        self.percent_correct_per_epoch.append(avg_accuracy)
+        self.losses_per_epoch.append(avg_loss)
+        self.running_loss = 0.0
+        self.running_accuracy = 0.0
+    
 
-        with torch.no_grad():
-            loader = tqdm(self.loader, desc='Evaluating')
-            for inputs, targets in loader:
-                inputs, targets = inputs.to(
-                    self.device), targets.to(
-                    self.device)
-                outputs = self.model(inputs)
-                loss = self.loss_fn(outputs, targets)
-                running_loss += loss.item()
-
-                # Assuming outputs are logits
-                predictions = torch.argmax(outputs, dim=1)
-                scores.extend(self.accuracy(predictions, targets))
-                loader.postfix = f'Loss: {loss.item()}, Accuracy: {np.mean(scores)}'
-
-        average_score = np.mean(scores)
-        self.percent_correct_per_epoch.append(average_score)
-        average_loss = running_loss / len(self.loader)
-        self.losses_per_epoch.append(average_loss)
-        return average_loss
-
-    def accuracy(self, predictions, ground_truths) -> List[float]:
+    def accuracy(self, predictions, ground_truths) -> float:
         '''
         Return the accuracy of the model as a Jaccard Index.
         '''
-        jaccard_scores = []
-
-        # Skip the background class
-        score = self.jaccard_score(
-            ground_truths, predictions, skip_label=0)
-        jaccard_scores.append(score)
-
-        return jaccard_scores
+        self.model.eval()
+        with torch.no_grad():
+            jaccard_score = self.jaccard.forward(predictions, ground_truths).item() + 1. # Add 1 to convert to accuracy
+        self.model.train()
+        return jaccard_score * 100
 
     def plot(self, metrics='both', output_path: str = None):
         fig, ax = plt.subplots(
