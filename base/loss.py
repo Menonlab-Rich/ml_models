@@ -12,14 +12,9 @@ class JaccardLoss(nn.Module):
         super(JaccardLoss, self).__init__()
         self.num_classes = num_classes
         # If weights are not provided, use equal weighting
-        self.weights = torch.tensor(weights if weights is not None else [
-                                    1.0]*num_classes, dtype=torch.float32)
-        # Register weights as a parameter if they need to be learnable, otherwise as a buffer
-        if weights is not None and all(
-                isinstance(w, torch.Tensor) for w in weights):
-            self.weights = nn.Parameter(self.weights)
-        else:
-            self.register_buffer('weights', self.weights)
+        self.weights = weights if weights is not None else torch.tensor(
+            [1.0] * num_classes, dtype=torch.float32)
+        self.register_buffer('weights', self.weights)
         self.smoothing = smoothing
 
     def forward(self, y_pred, y_true):
@@ -68,6 +63,7 @@ class PowerJaccardLoss(nn.Module):
         self.weights = weights if weights is not None else torch.tensor(
             [1.0] * num_classes, dtype=torch.float32).to(device)
         self.num_classes = num_classes
+        self.register_buffer('weights', self.weights)
 
     def forward(self, y_pred, y_true):
         y_pred = F.softmax(y_pred, dim=1)
