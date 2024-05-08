@@ -192,7 +192,7 @@ class GenericDataset(data.Dataset):
             train_set, self.transform['train']), TransformSubset(
             val_set, self.transform['val'])
             
-    def evaluate(self):
+    def eval(self):
         self._eval_mode = True
         
     def train(self):
