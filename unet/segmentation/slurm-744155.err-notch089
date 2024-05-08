@@ -1,23 +1,0 @@
-/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py:14: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
-  self.weights = torch.tensor(weights if weights is not None else [1.0]*num_classes, dtype=torch.float32)
-  0%|          | 0/822 [00:00<?, ?it/s]  0%|          | 0/822 [00:03<?, ?it/s]
-Traceback (most recent call last):
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 127, in <module>
-    trainer.train()
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 77, in train
-    self.train_epoch()
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 98, in train_epoch
-    loss = self.loss_fn(outputs, targets)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py", line 46, in forward
-    return self.jaccard(y_pred, y_true) + self.cross_entropy(y_pred, y_true)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py", line 35, in forward
-    weighted_jaccard = self.weights * jaccard
-RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
