@@ -103,7 +103,7 @@ class Trainer(train.BaseTrainer):
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
-            training_loop.set_postfix({'loss': loss.item()})
+            training_loop.set_postfix({'loss': loss.item(), 'accuracy': f'{accuracy}%'})
 
     def evaluate(self):
         self.evaluator.evaluate()  # Evaluate the model
