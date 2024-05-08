@@ -6,7 +6,7 @@ import albumentations as A
 import numpy as np
 from base.dataset import GenericDataLoader
 from base.config import BaseConfigHandler
-from base.loss import CrossEntropyJaccardLoss, JaccardLoss
+from base.loss import PowerJaccardLoss
 import toml
 
 
@@ -129,14 +129,12 @@ config = Config()
 config.load(path.join(path.dirname(__file__), 'config.toml'))
 _input_loader = InputLoader(config['directories']['inputs'])
 _target_loader = TargetLoader(config['directories']['targets'])
-weights  = torch.tensor([0.1, 1, 1], dtype=torch.float32).to(config['device'])
-cross_entropy = nn.CrossEntropyLoss(label_smoothing=0.1)
-jaccard = JaccardLoss(num_classes=config['model']['out_channels'], weights=weights, smoothing=1e-6) # 0 for background, 1 for the other classes
-loss_fn = CrossEntropyJaccardLoss(jaccard, cross_entropy) # combine the two losses
+weights = torch.tensor([1, 2, 2], dtype=torch.float32).to(config['device'])
+power_jaccard = PowerJaccardLoss(config['model']['out_channels'], weights=weights, power=1.5)
 
 config['input_loader'] = _input_loader
 config['target_loader'] = _target_loader
-config['loss_fn'] = loss_fn
+config['loss_fn'] = power_jaccard
 
 
 if __name__ == 'config':
@@ -144,5 +142,4 @@ if __name__ == 'config':
         from os import makedirs
         makedirs(config['directories']['data'], exist_ok=True)
         makedirs(config['directories']['results'], exist_ok=True)
-        makedirs(config['directories']['model'], exist_ok=True)
         print("Directories created")
