@@ -55,7 +55,7 @@ class CrossEntropyJaccardLoss(nn.Module):
 
 class PowerJaccardLoss(nn.Module):
     def __init__(self, num_classes=2, weights=None, smoothing=1e-6, power=1.0):
-        super(JaccardLoss, self).__init__()
+        super(PowerJaccardLoss, self).__init__()
         self.num_classes = num_classes
         # If weights are not provided, use equal weighting
         if weights is not None and all(
