@@ -12,9 +12,9 @@ class JaccardLoss(nn.Module):
         super(JaccardLoss, self).__init__()
         self.num_classes = num_classes
         # If weights are not provided, use equal weighting
-        self.weights = weights if weights is not None else torch.tensor(
+        weights = weights if weights is not None else torch.tensor(
             [1.0] * num_classes, dtype=torch.float32)
-        self.register_buffer('weights', self.weights)
+        self.register_buffer('weights', weights)
         self.smoothing = smoothing
 
     def forward(self, y_pred, y_true):
@@ -54,16 +54,17 @@ class PowerJaccardLoss(nn.Module):
     A power-weighted Jaccard loss, which is a generalization of the Jaccard loss
     Based on the paper: http://dx.doi.org/10.5220/0010304005610568
     '''
+
     def __init__(
             self, num_classes=2, weights=None, smoothing=1e-6, power=2,
             device='cuda'):
         super(PowerJaccardLoss, self).__init__()
         self.power = power
         self.smoothing = smoothing
-        self.weights = weights if weights is not None else torch.tensor(
+        weights if weights is not None else torch.tensor(
             [1.0] * num_classes, dtype=torch.float32).to(device)
         self.num_classes = num_classes
-        self.register_buffer('weights', self.weights)
+        self.register_buffer('weights', weights)
 
     def forward(self, y_pred, y_true):
         y_pred = F.softmax(y_pred, dim=1)
