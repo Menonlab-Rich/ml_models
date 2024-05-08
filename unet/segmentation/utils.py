@@ -8,8 +8,7 @@ import torch.nn as nn
 from matplotlib import pyplot as plt
 from typing import Dict, Literal, List
 from base.utilities import BaseUtilities
-from sklearn.metrics import jaccard_score, DistanceMetric
-from sklearn.preprocessing import OneHotEncoder
+import torch.nn.functional as F
 
 
 class utils(BaseUtilities):
@@ -161,35 +160,30 @@ class Evaluator:
         self.percent_correct_per_epoch = []
         self.losses_per_epoch = []
 
-        # Prepare OneHotEncoder for the categories specified in config
-        self.encoder = OneHotEncoder(
-            categories=[self.config['plotting']['labels']])
-        self.encoder.fit(
-            np.array(self.config['plotting']['labels']).reshape(-1, 1))
-
-    def jaccard_score(
-            self, predictions, ground_truths, skip_label=None, smoothing=1e-6):
-        # Ensure data is in numpy format
-        if isinstance(predictions, torch.Tensor):
-            predictions = predictions.cpu().numpy()
-        if isinstance(ground_truths, torch.Tensor):
-            ground_truths = ground_truths.cpu().numpy()
-
+    def jaccard_score(self, predictions, ground_truths, skip_label=None, smoothing=1e-6):
+        # Ensure predictions are one-hot encoded
+        if len(predictions.shape) == 2:  # Assuming shape [N, C] for class labels
+            predictions = F.one_hot(predictions.to(torch.int64), num_classes=ground_truths.shape[1])
+        elif len(predictions.shape) == 3:  # Assuming shape [N, H, W] for class labels
+            predictions = F.one_hot(predictions.to(torch.int64), num_classes=ground_truths.shape[1]).permute(0, 3, 1, 2)
+        
         # Calculate intersections and unions across all classes
-        intersection = np.logical_and(
-            predictions, ground_truths).sum(
-            axis=(2, 3))  # Sum over H and W dimensions
-        union = np.logical_or(predictions, ground_truths).sum(axis=(2, 3))
+        intersection = torch.logical_and(predictions, ground_truths).sum(dim=(2, 3))  # Sum over H and W dimensions
+        union = torch.logical_or(predictions, ground_truths).sum(dim=(2, 3))
 
         # Apply smoothing and compute Jaccard index (IoU) for each class and sample
         iou = (intersection + smoothing) / (union + smoothing)
 
-        # Handle skip_label by setting its score to NaN and then use np.nanmean to calculate mean while ignoring NaNs
+        # Handle skip_label by setting its score to zero and then calculating the mean
         if skip_label is not None:
-            iou[:, skip_label] = np.nan
+            iou[:, skip_label] = 0
+            valid_classes = iou.shape[1] - 1  # Exclude skipped class
+            mean_iou = iou.sum(dim=1) / valid_classes  # Calculate mean while excluding skipped class
+        else:
+            mean_iou = iou.mean(dim=1)
 
-        # Return the mean score across all classes and samples, ignoring NaNs if skip_label is used
-        return np.nanmean(iou)
+        # Return the mean score across all samples
+        return mean_iou.mean().item()
 
     def evaluate(self) -> float:
         from tqdm import tqdm

@@ -14,7 +14,7 @@ def predict():
     optimizer = torch.optim.Adam(model.parameters(), lr=config['training']['lr'])
     utils.load_checkpoint(model, optimizer, 'cpu', config['files']['model'])
     dataset = GenericDataset(config['input_loader'], config['target_loader'], config['transform'])
-    dataset.evaluate()
+    dataset.eval()
     loader = DataLoader(dataset, batch_size=config['training']['batch_size'], shuffle=False)
     evaluator = Evaluator(model, loader, config['loss_fn'], 'cpu', config)
     evaluator.evaluate()
@@ -27,7 +27,7 @@ def plot_examples():
     optimizer = torch.optim.Adam(model.parameters(), lr=config['training']['lr'])
     utils.load_checkpoint(model, optimizer, 'cpu', config['files']['model'])
     dataset = GenericDataset(config['input_loader'], config['target_loader'], config['transform'])
-    dataset.evaluate()
+    dataset.eval()
     loader = DataLoader(dataset, batch_size=3, shuffle=False)
     colors = [(0, 0, 0), (0, 255, 0), (255, 0, 0)]
     for i, (inputs, targets) in enumerate(loader):
