@@ -67,6 +67,7 @@ class PowerJaccardLoss(nn.Module):
         self.smoothing = smoothing
         self.weights = weights if weights is not None else torch.tensor(
             [1.0] * num_classes, dtype=torch.float32).to(device)
+        self.num_classes = num_classes
 
     def forward(self, y_pred, y_true):
         y_pred = F.softmax(y_pred, dim=1)
