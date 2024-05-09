@@ -170,19 +170,36 @@ class Evaluator:
         self.running_accuracy = 0.0
         self.total_predictions = 0
 
-    def update(self, loss: torch.Tensor, accuracy: torch.Tensor, batch_size: int):
+    def update(self, loss: torch.Tensor, accuracy: torch.Tensor,
+               batch_size: int):
         self.running_loss += loss.item()
         self.running_accuracy += accuracy.item()
         self.total_predictions += batch_size
 
-    def evaluate(self) -> float:
-        avg_loss = self.running_loss / self.total_predictions
-        avg_accuracy = self.running_accuracy / self.total_predictions
-        self.percent_correct_per_epoch.append(avg_accuracy)
-        self.losses_per_epoch.append(avg_loss)
-        self.running_loss = 0.0
-        self.running_accuracy = 0.0
-    
+    def evaluate(self, val_loader) -> float:
+        self.model.eval()
+        self.model.to(self.device)
+        running_loss = 0.0
+        running_accuracy = 0.0
+        with torch.no_grad():
+            for inputs, targets in val_loader:
+                inputs, targets = inputs.to(
+                    self.device), targets.to(
+                    self.device)
+                outputs = self.model(inputs)
+                loss = self.loss_fn(outputs, targets)
+                accuracy = self.accuracy(outputs, targets)
+                running_loss += loss.item()
+                running_accuracy += accuracy.item()
+        self.percent_correct_per_epoch.append(
+            running_accuracy / len(val_loader)
+        )
+        self.losses_per_epoch.append(running_loss / len(val_loader))
+        self.model.train() # Set the model back to training mode
+        self.running_loss = 0
+        self.running_accuracy = 0
+        self.total_predictions = 0
+        
 
     def accuracy(self, predictions, ground_truths) -> torch.Tensor:
         '''
@@ -190,7 +207,8 @@ class Evaluator:
         '''
         self.model.eval()
         with torch.no_grad():
-            jaccard_score = 1 - self.jaccard.forward(predictions, ground_truths) # Calculate the Jaccard Index
+            # Calculate the Jaccard Index
+            jaccard_score = 1 - self.jaccard.forward(predictions, ground_truths)
         self.model.train()
         return jaccard_score
 

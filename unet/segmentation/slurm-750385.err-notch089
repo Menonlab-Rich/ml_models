@@ -1,0 +1,37 @@
+/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py:15: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  self.weights = torch.tensor(weights if weights is not None else [
+  0%|          | 0/526 [00:00<?, ?it/s]  0%|          | 0/526 [00:03<?, ?it/s]
+Traceback (most recent call last):
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 132, in <module>
+    trainer.train()
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 79, in train
+    self.train_epoch()
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 99, in train_epoch
+    outputs = self.model(inputs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/model.py", line 102, in forward
+    x = self.up[i * 2 + 1](concat_skip)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/model.py", line 40, in forward
+    return self.conv(x)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/container.py", line 217, in forward
+    input = module(input)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/conv.py", line 460, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/conv.py", line 456, in _conv_forward
+    return F.conv2d(input, weight, bias, self.stride,
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 800.00 MiB. GPU 0 has a total capacity of 10.75 GiB of which 414.69 MiB is free. Including non-PyTorch memory, this process has 10.34 GiB memory in use. Of the allocated memory 8.95 GiB is allocated by PyTorch, and 1.20 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

@@ -1,0 +1,25 @@
+/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py:15: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  self.weights = torch.tensor(weights if weights is not None else [
+  0%|          | 0/822 [00:00<?, ?it/s]  0%|          | 0/822 [00:02<?, ?it/s]
+Traceback (most recent call last):
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 132, in <module>
+    trainer.train()
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 79, in train
+    self.train_epoch()
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 100, in train_epoch
+    loss = self.loss_fn(outputs, targets)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py", line 55, in forward
+    return self.loss_a(y_pred, y_true) * self.alpha + self.loss_b(y_pred, y_true)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py", line 79, in forward
+    union = torch.sum(torch.pow(y_true, self.power) + torch.pow(y_pred, self.pow), dim=[0, 2, 3]) - intersection
+  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1688, in __getattr__
+    raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+AttributeError: 'PowerJaccardLoss' object has no attribute 'pow'
