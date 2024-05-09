@@ -129,9 +129,9 @@ config = Config()
 config.load(path.join(path.dirname(__file__), 'config.toml'))
 _input_loader = InputLoader(config['directories']['inputs'])
 _target_loader = TargetLoader(config['directories']['targets'])
-weights = torch.tensor([1, 2, 2], dtype=torch.float32).to(config['device'])
+weights = torch.tensor([0.3, 1, 1], dtype=torch.float32).to(config['device'])
 jaccard = PowerJaccardLoss(config['model']['out_channels'], weights=weights, power=1.5)
-cross_entropy = nn.CrossEntropyLoss()
+cross_entropy = nn.CrossEntropyLoss(weight=weights, reduction='mean')
 loss = WeightedComboLoss(jaccard, cross_entropy, alpha=0.5)
 
 
