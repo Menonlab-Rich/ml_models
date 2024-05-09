@@ -31,14 +31,14 @@ class JaccardLoss(nn.Module):
         y_true = y_true.contiguous().view(y_true.shape[0], y_true.shape[1], -1)
 
         # Calculate dot product and L1 norm across the spatial dimensions for each example in the batch
-        dot_product = torch.sum(y_true * y_pred, dim=2)
-        l1_norm = torch.sum(torch.abs(y_pred - y_true), dim=2)
+        dot_product = torch.sum(y_true * y_pred, dim=[0, 2, 3])
+        l1_norm = torch.sum(torch.abs(y_pred - y_true), dim=[0, 2, 3])
 
         # Calculate the modified Jaccard index per example in the batch
         jaccard_index = dot_product / (dot_product + l1_norm + self.smoothing)
 
         if getattr(self, 'weights', None) is not None:
-            jaccard_index = self.weights.unsqueeze(0) * jaccard_index
+            jaccard_index = self.weights * jaccard_index
         # The loss is 1 - the average Jaccard index over the batch and classes
         return 1 - torch.mean(jaccard_index)  # Averaging over both batch and classes
 
