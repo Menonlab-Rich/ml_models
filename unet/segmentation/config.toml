@@ -6,10 +6,11 @@ data = 'D:\CZI_scope\code\ml_models\unet\segmentation\data'
 results = 'D:\CZI_scope\code\ml_models\unet\segmentation\results'
 inputs = 'D:\CZI_scope\code\preprocess_training\validation'
 targets = 'D:\CZI_scope\code\preprocess_training\validation\masks'
+model = 'D:\CZI_scope\code\ml_models\unet\segmentation\model'
 create = true
 
 [files]
-model = 'D:\CZI_scope\code\ml_models\unet\segmentation\model.pth.tar'
+model = 'D:\CZI_scope\code\ml_models\unet\segmentation\model\model.pth.tar'
 dataset = 'D:\CZI_scope\code\ml_models\unet\segmentation\data\dataset.tar'
 
 [training]

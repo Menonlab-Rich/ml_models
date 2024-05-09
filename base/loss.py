@@ -22,8 +22,8 @@ class JaccardLoss(nn.Module):
         y_true = F.one_hot(y_true, num_classes=self.num_classes).float()
         
         # Change shape to [batch, classes, other dimensions...]
-        y_pred = y_pred.permute(0, 2, 3, 1)
-        y_true = y_true.permute(0, 2, 3, 1)
+        # y_pred = y_pred.permute(0, 3, 2, 1)
+        y_true = y_true.permute(0, 3, 2, 1)
 
 
         # Calculate dot product and L1 norm across the spatial dimensions for each example in the batch

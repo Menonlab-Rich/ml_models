@@ -106,7 +106,7 @@ class Trainer(train.BaseTrainer):
             training_loop.set_postfix({'loss': loss.item(), 'accuracy': accuracy.item()})
 
     def evaluate(self):
-        self.evaluator.evaluate()  # Evaluate the model
+        self.evaluator.evaluate(self.val_loader)  # Evaluate the model
         return self.evaluator.losses_per_epoch[-1] # Return the loss
 
     def plot(self):

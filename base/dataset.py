@@ -52,7 +52,10 @@ class TransformSubset():
             x = self.subset.dataset.input_loader[idx]
             y = self.subset.dataset.target_loader[idx]
             if 'input' in self.transform:
-                x = self.transform['input'](x)
+                if len(self.transform['input'].__code__.co_varnames) > 1:
+                    x, y = self.transform['input'](x, y)
+                else:
+                    x = self.transform['input'](x)
             if 'target' in self.transform:
                 y = self.transform['target'](y)
 
