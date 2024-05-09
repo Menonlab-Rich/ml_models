@@ -59,11 +59,8 @@ class PowerJaccardLoss(nn.Module):
         super(PowerJaccardLoss, self).__init__()
         self.num_classes = num_classes
         # If weights are not provided, use equal weighting
-        if weights is not None and all(
-                isinstance(w, torch.Tensor) for w in weights):
-           self.register_buffer('weights', weights) 
-        else:
-            self.weights = weights
+        if weights is not None:
+            self.register_buffer('weights', weights)
         self.smoothing = smoothing
 
     def forward(self, y_pred, y_true):
@@ -78,16 +75,13 @@ class PowerJaccardLoss(nn.Module):
             0, 3, 1, 2)
 
         intersection = torch.sum(y_true * y_pred, dim=[0, 2, 3])
-        union = torch.sum(y_true + y_pred, dim=[0, 2, 3]) - intersection
+        union = torch.sum(torch.pow(y_true, self.power) + torch.pow(y_pred, self.pow), dim=[0, 2, 3]) - intersection
 
         jaccard = (intersection + self.smoothing) / (union + self.smoothing)
 
         # Apply weights
-        if self.weights is not None:
-            weighted_jaccard = self.weights * jaccard
-        else:
-            weighted_jaccard = jaccard # If no weights are provided, use equal weighting
-            
+        if getattr(self, 'weights', None) is not None:
+            jaccard = self.weights * jaccard
         # Return the mean Jaccard loss, weighted by class
-        return 1 - torch.mean(weighted_jaccard)
+        return 1 - torch.mean(jaccard)
 
