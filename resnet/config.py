@@ -102,12 +102,12 @@ TRANSFORMS = {
         # Apply input transforms
         'input': lambda x: INPUT_TRANSFORMS(image=x)['image'],
         # convert to tensor of type long
-        'target': lambda y: torch.tensor(y, dtype=torch.long)
+        'target': lambda y: torch.tensor(y, dtype=torch.float32)
     },
     'val': {
         'input': lambda x: VAL_TRANSFORMS(image=x)['image'],
         # convert to tensor of type long
-        'target': lambda y: torch.tensor(y, dtype=torch.long)
+        'target': lambda y: torch.tensor(y, dtype=torch.float32)
     }
 }
 
