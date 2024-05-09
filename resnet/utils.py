@@ -44,10 +44,11 @@ class Evaluator:
                     self.device), targets.to(
                     self.device)
                 outputs = self.model(inputs)
+                
                 loss = self.loss_fn(outputs, targets)
                 running_loss += loss.item()
                 total += targets.size(0)
-                total_correct += (torch.argmax(outputs, 1)
+                total_correct += (torch.argmax(outputs, 0)
                                   == targets).sum().item()
                 tqdm_loader.set_postfix({'loss': loss.item(), 'accuracy': total_correct / total})
                 if self.report:
