@@ -14,7 +14,7 @@ model = 'model.tar'
 dataset = 'dst.tar'
 
 [training]
-batch_size = 50
+batch_size = 32
 epochs = 16
 lr = 1e-3
 train_ratio = 0.8 # 80% of the data is used for training
