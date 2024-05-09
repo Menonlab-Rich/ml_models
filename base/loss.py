@@ -44,14 +44,15 @@ class JaccardLoss(nn.Module):
         return 1 - torch.mean(weighted_jaccard)
 
 
-class CrossEntropyJaccardLoss(nn.Module):
-    def __init__(self, jaccard: JaccardLoss, cross_entropy: nn.CrossEntropyLoss) -> None:
-        super(CrossEntropyJaccardLoss, self).__init__()
-        self.jaccard = jaccard
-        self.cross_entropy = cross_entropy
+class WeightedComboLoss(nn.Module):
+    def __init__(self, loss_a: nn.Module, loss_b: nn.Module, alpha=0.5) -> None:
+        super(WeightedComboLoss, self).__init__()
+        self.loss_a = loss_a
+        self.loss_b = loss_b
+        self.alpha = alpha
 
     def forward(self, y_pred, y_true):
-        return self.jaccard(y_pred, y_true) + self.cross_entropy(y_pred, y_true)
+        return self.loss_a(y_pred, y_true) * self.alpha + self.loss_b(y_pred, y_true)
 
 class PowerJaccardLoss(nn.Module):
     def __init__(self, num_classes=2, weights=None, smoothing=1e-6, power=1.0):
