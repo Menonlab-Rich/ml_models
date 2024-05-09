@@ -76,7 +76,7 @@ class PowerJaccardLoss(nn.Module):
             0, 3, 1, 2)
 
         intersection = torch.sum(y_true * y_pred, dim=[0, 2, 3])
-        union = torch.sum(torch.pow(y_true, self.power) + torch.pow(y_pred, self.pow), dim=[0, 2, 3]) - intersection
+        union = torch.sum(torch.pow(y_true, self.power) + torch.pow(y_pred, self.power), dim=[0, 2, 3]) - intersection
 
         jaccard = (intersection + self.smoothing) / (union + self.smoothing)
 
