@@ -73,15 +73,15 @@ class Evaluator:
         if metrics in ('both', 'accuracy'):
             ax_acc = ax[0] if metrics == 'both' else ax
             ax_acc.plot(self.percent_correct_per_epoch)
-            ax_acc.set_title('Percent Correct per Epoch')
-            ax_acc.set_xlabel('Epoch')
+            ax_acc.set_title(f'Percent Correct per {self.x_axis.capitalize()}')
+            ax_acc.set_xlabel(self.x_axis.capitalize())
             ax_acc.set_ylabel('Percent Correct')
 
         if metrics in ('both', 'loss'):
             ax_loss = ax[1] if metrics == 'both' else ax
             ax_loss.plot(self.losses_per_epoch)
-            ax_loss.set_title('Loss per Epoch')
-            ax_loss.set_xlabel('Epoch')
+            ax_loss.set_title(f'Loss per {self.x_axis.capitalize()}')
+            ax_loss.set_xlabel(self.x_axis.capitalize())
             ax_loss.set_ylabel('Loss')
 
         plt.tight_layout()

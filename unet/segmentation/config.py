@@ -6,7 +6,7 @@ import albumentations as A
 import numpy as np
 from base.dataset import GenericDataLoader
 from base.config import BaseConfigHandler
-from base.loss import CrossEntropyJaccardLoss, JaccardLoss
+from base.loss import WeightedComboLoss, PowerJaccardLoss
 import toml
 
 
@@ -130,9 +130,9 @@ config.load(path.join(path.dirname(__file__), 'config.toml'))
 _input_loader = InputLoader(config['directories']['inputs'])
 _target_loader = TargetLoader(config['directories']['targets'])
 weights = torch.tensor([1, 2, 2], dtype=torch.float32).to(config['device'])
-jaccard = JaccardLoss(config['model']['out_channels'], weights=weights)
+jaccard = PowerJaccardLoss(config['model']['out_channels'], weights=weights, power=1.5)
 cross_entropy = nn.CrossEntropyLoss()
-loss = CrossEntropyJaccardLoss(jaccard, cross_entropy)
+loss = WeightedComboLoss(jaccard, cross_entropy, alpha=0.5)
 
 
 config['input_loader'] = _input_loader

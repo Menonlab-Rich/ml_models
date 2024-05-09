@@ -40,7 +40,7 @@ def main():
     dataset = GenericDataset(
         input_loader=input_loader, target_loader=target_loader,
         transform=TRANSFORMS)
-    dataset.evaluate()  # Set the dataset to evaluation mode
+    dataset.eval()  # Set the dataset to evaluation mode
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
     filenames = dataset.input_loader.get_ids()
     model.eval()
