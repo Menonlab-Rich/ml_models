@@ -9,11 +9,6 @@ def get_model(n_classes, freeze_layers=False, n_channels=3, multi_gpu=False):
 
     num_features = resnet.fc.in_features
     resnet.fc = nn.Linear(num_features, n_classes)
-    if n_classes == 1:
-        resnet.fc = nn.Sequential(
-            nn.Linear(num_features, 1),
-            nn.Sigmoid()
-        )
     
     if n_channels != 3:
         # Change the first layer to accept n_channels
