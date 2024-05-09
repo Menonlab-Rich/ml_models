@@ -111,8 +111,7 @@ TRANSFORMS = {
     }
 }
 
-LOSS_FN = nn.CrossEntropyLoss(label_smoothing=0.1, weight=torch.tensor(
-    [0, 1, 1], dtype=torch.float32, device=DEVICE))  # Add more parameters as needed
+LOSS_FN = nn.BCEWithLogitsLoss()
 
 if __name__ == 'config':
     assert not MULTI_GPU or cuda.is_available(
