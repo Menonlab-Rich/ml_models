@@ -22,7 +22,7 @@ def train(model, loader, optimizer, scaler):
         inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
         optimizer.zero_grad()
         with autocast():
-            outputs = model(inputs)
+            outputs = torch.squeeze(model(inputs))
             loss = LOSS_FN(outputs, targets)
         scaler.scale(loss).backward()
         scaler.step(optimizer)
