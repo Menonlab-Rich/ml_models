@@ -62,6 +62,7 @@ class PowerJaccardLoss(nn.Module):
         if weights is not None:
             self.register_buffer('weights', weights)
         self.smoothing = smoothing
+        self.power = power
 
     def forward(self, y_pred, y_true):
         # Ensure y_pred is in probability form
