@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from typing import Dict, Literal, List
 from base.utilities import BaseUtilities
 import torch.nn.functional as F
-from base.loss import JaccardLoss
+from base.loss import JML1
 
 
 class utils(BaseUtilities):
@@ -165,7 +165,7 @@ class Evaluator:
             1.0] * config['num_classes'] if weights is None else weights
         self.weights = torch.tensor(
             self.weights, dtype=torch.float32).to(device)
-        self.jaccard = JaccardLoss(len(self.weights), self.weights)
+        self.jaccard = JML1(len(self.weights), self.weights)
         self.running_loss = 0.0
         self.running_accuracy = 0.0
         self.total_predictions = 0
