@@ -6,7 +6,7 @@ import albumentations as A
 import numpy as np
 from base.dataset import GenericDataLoader
 from base.config import BaseConfigHandler
-from base.loss import JaccardLoss
+from base.loss import JML1, WeightedComboLoss
 import toml
 
 
@@ -76,7 +76,7 @@ class InputLoader(GenericDataLoader):
     def __init__(self, directory):
         self.directory = directory
         files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
-        self.files = files
+        self.files = files[:5]
 
     def __len__(self):
         return len(self.files)
@@ -104,7 +104,7 @@ class TargetLoader(GenericDataLoader):
     def __init__(self, directory):
         self.directory = directory
         self.files = sorted(
-            [f for f in listdir(directory) if f.endswith('.npz')])
+            [f for f in listdir(directory) if f.endswith('.npz')])[:5]
 
     def __len__(self):
         return len(self.files)
@@ -130,7 +130,10 @@ config.load(path.join(path.dirname(__file__), 'config.toml'))
 _input_loader = InputLoader(config['directories']['inputs'])
 _target_loader = TargetLoader(config['directories']['targets'])
 weights = torch.tensor([0.3, 1, 1], dtype=torch.float32).to(config['device'])
-loss = JaccardLoss(num_classes=3, weights=weights)
+ce = nn.CrossEntropyLoss(label_smoothing=0.1)
+jml1 = JML1(num_classes=3)
+loss = WeightedComboLoss(jml1, ce, 0.75, 0.25)
+
 
 config['input_loader'] = _input_loader
 config['target_loader'] = _target_loader
