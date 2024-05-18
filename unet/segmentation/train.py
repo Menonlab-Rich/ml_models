@@ -38,7 +38,7 @@ class Trainer(train.BaseTrainer):
         self.logger = logging.getLogger(__name__)
         self.scaler = GradScaler()
 
-    def setup(self):
+    def pre_train(self):
         if self.config['training']['scheduler'] == 'plateau':
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                 self.optimizer, **self.config['training']['scheduler_params'])
@@ -71,7 +71,7 @@ class Trainer(train.BaseTrainer):
             [0, 1, 1])
 
     def train(self):
-        self.setup()  # Setup the training process
+        self.pre_train()  # Setup the training process
         best_loss = float('inf')
         for epoch in range(self.config['training']['epochs']):
             self.logger.info(
@@ -104,7 +104,9 @@ class Trainer(train.BaseTrainer):
             self.scaler.step(self.optimizer)
             self.scaler.update()
             training_loop.set_postfix({'loss': loss.item(), 'accuracy': accuracy.item()})
-
+    
+    def post_train(self, *args, **kwargs):
+        self.scheduler.step()
     def evaluate(self):
         self.evaluator.evaluate(self.val_loader)  # Evaluate the model
         return self.evaluator.losses_per_epoch[-1] # Return the loss

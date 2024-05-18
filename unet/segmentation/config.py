@@ -68,6 +68,7 @@ class Config(BaseConfigHandler):
     
     def get(self, key, default=None):
         return self.config.get(key, default)
+    
 
 
 

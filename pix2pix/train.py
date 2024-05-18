@@ -1,118 +1,192 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import config
-from utils import save_examples, save_checkpoint, load_checkpoint
-from dataset import Dataset
-from discriminator import Discriminator
-from generator import Generator
-from tqdm import tqdm
+import utils
+from base.train import BaseTrainer
+from base.dataset import GenericDataset
+from torch import nn
+from torch.cuda import amp
 from torch.utils.data import DataLoader
-import logging
+from typing import Callable, Literal
+from tqdm import tqdm
 
 
-def train(
-        disc, gen, train_loader, opt_disc, opt_gen, BCE, L1_LOSS, g_scaler,
-        d_scaler):
-    loop = tqdm(train_loader, leave=True)
-    for idx, (_, x, y) in enumerate(loop):
-        x, y = x.to(config.DEVICE), y.to(config.DEVICE)
+class Pix2PixTrainer(BaseTrainer):
+    def __init__(
+            self, generator: nn.Module, discriminator: nn.Module,
+            dataset: GenericDataset, loss_fn_g: Callable[[torch.Tensor, torch.Tensor], float],
+            loss_fn_d: Callable[[torch.Tensor, bool], float],
+            optimizer_g: nn.Module, optimizer_d: nn.Module,
+            device: Literal['cuda', 'cpu'],
+            scaler: bool, **kwargs):
+        
+        scaler = device == 'cuda' and scaler
+
+        config = kwargs.get('config', {})
+        args = {
+            'generator': generator,  # The generator model
+            'discriminator': discriminator,  # The discriminator model
+            'optimizer_g': optimizer_g,  # The optimizer for the generator
+            'optimizer_d': optimizer_d,  # The optimizer for the discriminator
+            'device': device,  # The device to train the model on
+            'dataset': dataset,  # The dataset to train the model on
+            'loss_fn_g': loss_fn_g,  # The loss function to use
+            'loss_fn_d': loss_fn_d,  # The loss function to use for the discriminator
+            'config': kwargs.get('config', {}),  # Any additional configuration
+            'scheduler_g': None,  # The scaler for mixed precision training
+            'scheduler_d': None,  # The scheduler for the discriminator, defaults to 'None
+            **kwargs
+        }
+
+        epochs = kwargs.get('epochs', None)  # The number of epochs to train for
+        if epochs is None:
+            epochs = config.get('epochs', None)
+
+        args['epochs'] = epochs
+
+        super().__init__(**args)  # Initialize the base trainer with the arguments
+        # The scaler for mixed precision training or None
+        self.scaler = amp.GradScaler() if scaler else None
+        # The losses for the generator and discriminator
+        self.losses = {'g': [], 'd': []}
+        self.best_loss_d = float('inf')  # The best loss for the discriminator
+        self.best_loss_g = float('inf')  # The best loss for the generator
+
+    def pre_train(self):
+        self.generator.to(self.device)
+        self.discriminator.to(self.device)
+        self.loss_fn_g.to(self.device)
+        self.loss_fn_d.to(self.device)
+        self.train_ds, self.val_ds = self.dataset.split(0.8)
+        self.train_dl = DataLoader(
+            self.train_ds, batch_size=self.config.get('batch_size', 1),
+            shuffle=True)
+        self.val_dl = DataLoader(
+            self.val_ds, batch_size=self.config.get('batch_size', 1),
+            shuffle=False)
+        
+        self.optimizer_d = self.optimizer_d(self.discriminator.parameters())
+        self.optimizer_g = self.optimizer_g(self.generator.parameters())
+        self.scheduler = self.scheduler_g(self.optimizer_g) # The scheduler for the generator
+
+    def step(self, data, *args, **kwargs):
+        if data is None:
+            raise ValueError('Data must be provided to the step method')
+
+        inputs, targets = data
+        inputs, targets = inputs.to(
+            self.device), targets.to(self.device)
 
         # Train Discriminator
-        with torch.cuda.amp.autocast():
-            y_fake = gen(x)
-            D_real = disc(x, y)
-            D_real_loss = BCE(D_real, torch.ones_like(D_real))
-            D_fake = disc(x, y_fake.detach())
-            D_fake_loss = BCE(D_fake, torch.zeros_like(D_fake))
-            # to make the discriminator learn slower relative to the generator
-            D_loss = (D_real_loss + D_fake_loss) / 2
+        with amp.autocast():
+            self.optimizer_d.zero_grad()
+            output_real = self.discriminator(targets)
+            output_fake = self.discriminator(self.generator(inputs).detach())
+            loss_d_real = self.loss_fn_d(output_real, True)
+            loss_d_fake = self.loss_fn_d(output_fake, False)
+            loss_d = loss_d_real + loss_d_fake
 
-        disc.zero_grad()
-        d_scaler.scale(D_loss).backward()
-        d_scaler.step(opt_disc)
-        d_scaler.update()
+            if self.scaler:
+                self.scaler.scale(loss_d).backward()
+            else:
+                loss_d.backward()
+        
+        self.optimizer_d.step()
 
         # Train Generator
-        with torch.cuda.amp.autocast():
-            D_fake = disc(x, y_fake)
-            G_fake_loss = BCE(D_fake, torch.ones_like(D_fake))
-            L1 = L1_LOSS(y_fake, y) * config.L1_LAMBDA  # L1 weight
-            G_loss = G_fake_loss + L1
+        with amp.autocast():
+            self.optimizer_g.zero_grad()
+            generated_images = self.generator(inputs)
+            output_fake = self.discriminator(generated_images)
+            adversarial_loss = self.loss_fn_d(output_fake, True)
+            loss_g = self.loss_fn_g(output_fake, generated_images, targets)
+            loss_g = adversarial_loss + loss_g
+            if self.scaler:
+                self.scaler.scale(loss_g).backward()
+            else:
+                loss_g.backward()
+                
+        self.optimizer_g.step()
 
-        opt_gen.zero_grad()
-        g_scaler.scale(G_loss).backward()
-        g_scaler.step(opt_gen)
-        g_scaler.update()
+        return {'loss_g': loss_g.item(), 'loss_d': loss_d.item()}
 
+    def post_step(self, res, tq=None):
+        loss_g = res['loss_g']
+        loss_d = res['loss_d']
+        if tq:
+            tq.set_postfix(loss_g=loss_g, loss_d=loss_d)
+        return res
 
-def main():
-    disc = Discriminator(in_channels=config.CHANNELS_INPUT).to(config.DEVICE)
-    gen = Generator(in_channels=config.CHANNELS_INPUT).to(config.DEVICE)
-    opt_disc = optim.Adam(
-        disc.parameters(),
-        lr=config.LEARNING_RATE, betas=(0.5, 0.999))
-    opt_gen = optim.Adam(
-        gen.parameters(),
-        lr=config.LEARNING_RATE, betas=(0.5, 0.999))
-    BCE = nn.BCEWithLogitsLoss()  # Binary Cross Entropy
-    L1_LOSS = nn.L1Loss()  # L1 loss
+        
+    def post_epoch(self, tq=None, res=None):
+        loss_g = res['loss_g']
+        loss_d = res['loss_d']
+        self.losses['g'].append(loss_g)
+        self.losses['d'].append(loss_d)
+        self.scheduler.step() # Step the scheduler after each epoch
+        if loss_g < self.best_loss_g:
+            self.best_loss_g = loss_g
+            utils.save_checkpoint({
+                'generator': self.generator.state_dict(),
+                'optimizer_g': self.optimizer_g.state_dict()
+            }, path.join(self.config['directories']['model'], 'generator.tar'))
+        
+        if loss_d < self.best_loss_d:
+            self.best_loss_d = loss_d
+            utils.save_checkpoint({
+                'discriminator': self.discriminator.state_dict(),
+                'optimizer_d': self.optimizer_d.state_dict()
+            }, path.join(self.config['directories']['model'], 'discriminator.tar'))
 
-    if config.LOAD_MODEL:
-        load_checkpoint(config.CHECKPOINT_GEN, gen,
-                        opt_gen, config.LEARNING_RATE)
-        load_checkpoint(config.CHECKPOINT_DISC, disc,
-                        opt_disc, config.LEARNING_RATE)
+    @property
+    def training_data(self):
+        return self.train_dl
 
-    dataset = Dataset(
-        image_globbing_pattern=r"czi_training_data/*.jpg",
-        target_globbing_pattern=r"czi_training_data/*.jpg",
-        make_even=False, make_square=False, match_shape=False, target_input_combined=True, axis="x",
-        transform=(config.both_transform, config.transform_only_input, config.
-                   transform_only_target))
-    # split the dataset into train and validation sets
-    train_len = int(len(dataset)*0.8)  # Use 80% of the dataset for training
-    val_len = len(dataset) - train_len  # Use the remaining 20% for validation
-    train_set, val_set = torch.utils.data.random_split(
-        dataset, [train_len, val_len])
-    torch.save(val_set, 'val.pt')
-    g_scaler = torch.cuda.amp.GradScaler()
-    d_scaler = torch.cuda.amp.GradScaler()
+    def train(self):
+        super().train(self.step)
+    
+    def train_step(self, *args, **kwargs) -> dict:
+        return super().train_step(*args, **kwargs)
 
-    train_loader = DataLoader(
-        train_set, batch_size=config.BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
+    def evaluate(self):
+        self.generator.eval()
+        with torch.no_grad():
+            for i, data in enumerate(self.val_dl):
+                masks, target_images = data
+                masks, target_images = masks.to(
+                    self.device), target_images.to(
+                    self.device)
+                output = self.generator(masks)
+                # Add evaluation metrics here
+        self.generator.train()
 
-    for epoch in range(config.NUM_EPOCHS):
-        train(disc, gen, train_loader, opt_disc,
-              opt_gen, BCE, L1_LOSS, g_scaler, d_scaler)
+    def plot(self):
+        from matplotlib import pyplot as plt
+        plt.plot(self.losses['g'], label='Generator Loss')
+        plt.plot(self.losses['d'], label='Discriminator Loss')
+        plt.legend()
+        plt.savefig('losses.png')
 
-        if config.SAVE_MODEL and epoch % 5 == 0:
-            save_checkpoint(gen, opt_gen, filename=config.CHECKPOINT_GEN)
-            save_checkpoint(disc, opt_disc, filename=config.CHECKPOINT_DISC)
-
-        try:
-            save_examples(
-                gen, val_loader, epoch,
-                folder=r"eval", mean=config.MEAN, stdev=config.STDEV)
-        except Exception as e:
-            logging.error(e)
-            pass # ignore errors with saving examples
-
-
-def set_log_level(default_level: str):
-    import logging
-    import os
-
-    log_level = os.environ.get('LOG_LEVEL', default_level)
-    numeric_level = getattr(logging, log_level.upper(), None)
-    if not isinstance(numeric_level, int):
-        logging.warning(
-            f'Invalid log level: {log_level}. Defaulting to {default_level}')
-        numeric_level = getattr(logging, default_level.upper(), None)
-    logging.basicConfig(level=numeric_level)
+    def post_train(self, *args, **kwargs):
+        return super().post_train(*args, **kwargs)
 
 
-if __name__ == "__main__":
-    set_log_level('INFO')
-    main()
+if __name__ == '__main__':
+    # First, load the dataset
+    from dataset import get_dataset
+    from config import Config, DiscriminatorLoss, GeneratorLoss
+    from model import Generator, Discriminator
+    from os import path
+    conf_file = path.join(path.dirname(__file__), 'config.yml')
+    config = Config(config_file=conf_file)
+    dataset = get_dataset(
+        config['directories']['inputs'],
+        config['directories']['targets'],
+        config['transform'])
+    trainer = Pix2PixTrainer(
+        Generator(config['model']['in_channels'], config['model']['out_channels']),
+        Discriminator(config['model']['out_channels']),
+        dataset, GeneratorLoss(), DiscriminatorLoss(),
+        config['optimizer'], config['optimizer'], config['device'], scaler=True, config=config,
+        scheduler_g=config['scheduler']
+    )
+    
+    trainer.train()
