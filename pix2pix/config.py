@@ -177,9 +177,9 @@ adversarial_loss = torch.nn.BCEWithLogitsLoss()
 
 
 class GeneratorLoss(torch.nn.Module):
-    def __init__(self, lambda_adv=0.001):
+    def __init__(self, lambda_=0.001):
         super(GeneratorLoss, self).__init__()
-        self.lambda_adv = lambda_adv
+        self.lambda_adv = lambda_
 
     def forward(self, fake, generated, real):
         truthy = torch.ones_like(fake)
