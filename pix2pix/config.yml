@@ -2,12 +2,12 @@ device:
   default: cpu
   cuda_if_available: true
 directories:
-  root: D:\CZI_scope\code\ml_models\unet\segmentation
-  data: D:\CZI_scope\code\ml_models\unet\segmentation\data
-  results: D:\CZI_scope\code\ml_models\unet\segmentation\results
-  inputs: D:\CZI_scope\code\preprocess\masks
-  targets: D:\CZI_scope\code\preprocess\tifs
-  model: D:\CZI_scope\code\ml_models\pix2pix
+  root: .
+  data: data
+  results: results
+  inputs: ../../data/transfer/preprocess/masks
+  targets: ../../data/transfer/preprocess/tifs
+  model: ~/ml_models/pix2pix
   create: true
 train:
   batch_size: 16
