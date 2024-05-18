@@ -1,0 +1,82 @@
+device:
+  default: cpu
+  cuda_if_available: true
+directories:
+  root: D:\CZI_scope\code\ml_models\unet\segmentation
+  data: D:\CZI_scope\code\ml_models\unet\segmentation\data
+  results: D:\CZI_scope\code\ml_models\unet\segmentation\results
+  inputs: D:\CZI_scope\code\preprocess\masks
+  targets: D:\CZI_scope\code\preprocess\tifs
+  model: D:\CZI_scope\code\ml_models\pix2pix
+  create: true
+train:
+  batch_size: 16
+  epochs: 20
+  train_ratio: 0.8
+
+model:
+  in_channels: 1
+  out_channels: 1
+  features:
+    - 64
+    - 128
+    - 256
+    - 512
+plotting:
+  save: true
+  classes:
+    - background
+    - "625"
+    - "605"
+  labels:
+    - 0
+    - 1
+    - 2
+optimizer:
+  kind: "adam"
+  params:
+    lr: 1.e-3
+scheduler:
+  kind: "step"
+  params:
+    step_size: 5
+transform:
+  lib: "Albumentations" # which transformation lib to use
+  targets: # Which data types to target 
+    input: # Sometimes input transforms need to be applied both the input and target types
+      - image
+      - mask
+    target: # I have yet to find a case where target transforms need to be applied to more than 1 type
+      - image
+  input:
+    - xform: LongestMaxSize
+      args:
+        max_size: 256
+      pipeline: both
+    - xform: PadIfNeeded
+      args:
+        min_height: 256
+        min_width: 256
+        border_mode: 0 # BORDER_CONSTANT
+        value: 0
+      pipeline: both
+    - xform: RandomBrightnessContrast
+      args:
+        p: 0.5
+      pipeline: train
+    - xform: GaussNoise
+      args:
+        var_limit:
+          - 1.0e-4
+          - 1.0e-3
+        p: 0.5
+      pipeline: train
+    - xform: ToTensorWithDType
+      args:
+        p: 1
+        dtype: float32
+      custom: true
+  target:
+    - xform: ToFloat
+      args:
+        p: 1

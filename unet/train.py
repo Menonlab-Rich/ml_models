@@ -48,7 +48,7 @@ def main(predict_only=False):
                     channels=(config.CHANNELS_INPUT, config.CHANNELS_OUTPUT),
                     to_float=config.DATASET_TO_FLOAT
             )
-        training_set, validation_set = utils.split_dataset(ds)
+        training_set, validation_set = ds.split(config.TRAIN_VAL_SPLIT)
     
     # Set the input and target readers if required
     # This has to happen after the dataset is created
