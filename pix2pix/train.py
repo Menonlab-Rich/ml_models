@@ -101,10 +101,14 @@ class Pix2PixTrainer(BaseTrainer):
             loss_g = adversarial_loss + loss_g
             if self.scaler:
                 self.scaler.scale(loss_g).backward()
+                torch.nn.utils.clip_grad_norm_(self.generator.parameters(), 1.0)
+                self.scaler.step(self.optimizer_g)
+                self.scaler.update()
             else:
                 loss_g.backward()
+                torch.nn.utils.clip_grad_norm_(self.generator.parameters(), 1.0)
+                self.optimizer_g.step()
                 
-        self.optimizer_g.step()
 
         return {'loss_g': loss_g.item(), 'loss_d': loss_d.item()}
 
@@ -184,7 +188,7 @@ if __name__ == '__main__':
     trainer = Pix2PixTrainer(
         Generator(config['model']['in_channels'], config['model']['out_channels']),
         Discriminator(config['model']['out_channels']),
-        dataset, GeneratorLoss(), DiscriminatorLoss(),
+        dataset, GeneratorLoss(config['model']['lambda']), DiscriminatorLoss(),
         config['optimizer'], config['optimizer'], config['device'], scaler=True, config=config,
         scheduler_g=config['scheduler']
     )
