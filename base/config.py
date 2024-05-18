@@ -34,6 +34,10 @@ class BaseConfigHandler(ABC):
     def __iter__(self):
         for key, value in self.config.items():
             yield key, value
+    
+    def __getattr__(self, name: str) -> torch.Any:
+        # If the attribute is not found in the class, proxy it to the config
+        return getattr(self.config, name)
 
 class TomlConfigHandler(BaseConfigHandler):
     from toml import load, dump
@@ -80,5 +84,26 @@ class TomlConfigHandler(BaseConfigHandler):
 
 
 
+def create_transform_function(keys, transform_name, transform):
+    # Generate the function signature
+    args_str = ", ".join(keys)
+    # Generate the dictionary to unpack into the transform function
+    dict_str = ", ".join([f"'{key}': {key}" for key in keys])
+    
+    # Define the function template
+    func_template = f"""
+def transform_function({args_str}):
+    transform_input = {{{dict_str}}}
+    transformed = {transform_name}(**transform_input)
+    res = tuple(transformed[key] for key in {keys})
+    if len(res) == 1:
+        return res[0]
+    return res
+"""
+    
+    # Define the function in the local scope
+    local_scope = {}
+    exec(func_template, {transform_name: transform}, local_scope)
+    return local_scope['transform_function']
 
 
