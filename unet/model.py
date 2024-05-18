@@ -16,6 +16,7 @@ class UNet(nn.Module):
                 nn.LeakyReLU(inplace=True),
                 nn.Conv2d(feature, feature, kernel_size=3, padding=1),
                 nn.LeakyReLU(inplace=True),
+                nn.Dropout(0.5)
             ))
             in_channels = feature
 
@@ -27,11 +28,13 @@ class UNet(nn.Module):
                 nn.LeakyReLU(inplace=True),
                 nn.Conv2d(feature, feature, kernel_size=3, padding=1),
                 nn.LeakyReLU(inplace=True),
+                nn.Dropout(0.5)
             ))
 
         self.bottleneck = nn.Sequential(
             nn.Conv2d(features[-1], features[-1] * 2, kernel_size=3, padding=1),
             nn.LeakyReLU(inplace=True),
+            nn.Dropout(0.5),
         )
 
         self.final_conv = nn.Conv2d(features[0], out_channels, kernel_size=1)

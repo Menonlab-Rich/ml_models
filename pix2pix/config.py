@@ -172,7 +172,7 @@ class Config(BaseConfigHandler):
         return super().save(path)
 
 
-pixel_wise_loss = torch.nn.MSELoss()
+pixel_wise_loss = torch.nn.L1Loss()
 adversarial_loss = torch.nn.BCEWithLogitsLoss()
 
 

@@ -17,7 +17,7 @@ class Pix2PixTrainer(BaseTrainer):
             optimizer_g: nn.Module, optimizer_d: nn.Module,
             device: Literal['cuda', 'cpu'],
             scaler: bool, **kwargs):
-        
+
         scaler = device == 'cuda' and scaler
 
         config = kwargs.get('config', {})
@@ -62,10 +62,19 @@ class Pix2PixTrainer(BaseTrainer):
         self.val_dl = DataLoader(
             self.val_ds, batch_size=self.config.get('batch_size', 1),
             shuffle=False)
-        
+
         self.optimizer_d = self.optimizer_d(self.discriminator.parameters())
         self.optimizer_g = self.optimizer_g(self.generator.parameters())
-        self.scheduler = self.scheduler_g(self.optimizer_g) # The scheduler for the generator
+        # The scheduler for the generator
+        self.scheduler = self.scheduler_g(self.optimizer_g)
+        if self.config.get('load_model', False):
+            utils.load_checkpoint(
+                self.generator, self.optimizer_g, self.config, path.join(
+                    self.config['directories']['model'], 'generator.tar')
+            )
+            utils.load_checkpoint(
+                self.discriminator, self.optimizer_d, self.config, path.join(
+                    self.config['directories']['model'], 'discriminator.tar'))
 
     def step(self, data, *args, **kwargs):
         if data is None:
@@ -88,7 +97,7 @@ class Pix2PixTrainer(BaseTrainer):
                 self.scaler.scale(loss_d).backward()
             else:
                 loss_d.backward()
-        
+
         self.optimizer_d.step()
 
         # Train Generator
@@ -108,7 +117,6 @@ class Pix2PixTrainer(BaseTrainer):
                 loss_g.backward()
                 torch.nn.utils.clip_grad_norm_(self.generator.parameters(), 1.0)
                 self.optimizer_g.step()
-                
 
         return {'loss_g': loss_g.item(), 'loss_d': loss_d.item()}
 
@@ -119,26 +127,27 @@ class Pix2PixTrainer(BaseTrainer):
             tq.set_postfix(loss_g=loss_g, loss_d=loss_d)
         return res
 
-        
     def post_epoch(self, tq=None, res=None):
         loss_g = res['loss_g']
         loss_d = res['loss_d']
         self.losses['g'].append(loss_g)
         self.losses['d'].append(loss_d)
-        self.scheduler.step() # Step the scheduler after each epoch
+        self.scheduler.step()  # Step the scheduler after each epoch
         if loss_g < self.best_loss_g:
             self.best_loss_g = loss_g
             utils.save_checkpoint({
                 'generator': self.generator.state_dict(),
                 'optimizer_g': self.optimizer_g.state_dict()
             }, path.join(self.config['directories']['model'], 'generator.tar'))
-        
+
         if loss_d < self.best_loss_d:
             self.best_loss_d = loss_d
-            utils.save_checkpoint({
-                'discriminator': self.discriminator.state_dict(),
-                'optimizer_d': self.optimizer_d.state_dict()
-            }, path.join(self.config['directories']['model'], 'discriminator.tar'))
+            utils.save_checkpoint(
+                {'discriminator': self.discriminator.state_dict(),
+                 'optimizer_d': self.optimizer_d.state_dict()},
+                path.join(
+                    self.config['directories']['model'],
+                    'discriminator.tar'))
 
     @property
     def training_data(self):
@@ -146,7 +155,7 @@ class Pix2PixTrainer(BaseTrainer):
 
     def train(self):
         super().train(self.step)
-    
+
     def train_step(self, *args, **kwargs) -> dict:
         return super().train_step(*args, **kwargs)
 
@@ -181,16 +190,23 @@ if __name__ == '__main__':
     from os import path
     conf_file = path.join(path.dirname(__file__), 'config.yml')
     config = Config(config_file=conf_file)
+    gen = Generator(
+        config['model']['in_channels'],
+        config['model']['out_channels']),
+    disc = Discriminator(
+        config['model']['in_channels'],
+        config['model']['out_channels'])
     dataset = get_dataset(
         config['directories']['inputs'],
         config['directories']['targets'],
         config['transform'])
-    trainer = Pix2PixTrainer(
-        Generator(config['model']['in_channels'], config['model']['out_channels']),
-        Discriminator(config['model']['out_channels']),
-        dataset, GeneratorLoss(config['model']['lambda']), DiscriminatorLoss(),
-        config['optimizer'], config['optimizer'], config['device'], scaler=True, config=config,
-        scheduler_g=config['scheduler']
-    )
-    
+    trainer = Pix2PixTrainer(gen, disc, dataset,
+                             GeneratorLoss(config['model']['lambda']),
+                             DiscriminatorLoss(),
+                             config['optimizer'],
+                             config['optimizer'],
+                             config['device'],
+                             scaler=True, config=config,
+                             scheduler_g=config['scheduler'])
+
     trainer.train()
