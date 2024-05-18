@@ -192,7 +192,7 @@ if __name__ == '__main__':
     config = Config(config_file=conf_file)
     gen = Generator(
         config['model']['in_channels'],
-        config['model']['out_channels']),
+        config['model']['out_channels'])
     disc = Discriminator(
         config['model']['in_channels'],
         config['model']['out_channels'])
