@@ -190,23 +190,16 @@ if __name__ == '__main__':
     from os import path
     conf_file = path.join(path.dirname(__file__), 'config.yml')
     config = Config(config_file=conf_file)
-    gen = Generator(
-        config['model']['in_channels'],
-        config['model']['out_channels'])
-    disc = Discriminator(
-        config['model']['in_channels'],
-        config['model']['out_channels'])
     dataset = get_dataset(
         config['directories']['inputs'],
         config['directories']['targets'],
         config['transform'])
-    trainer = Pix2PixTrainer(gen, disc, dataset,
-                             GeneratorLoss(config['model']['lambda']),
-                             DiscriminatorLoss(),
-                             config['optimizer'],
-                             config['optimizer'],
-                             config['device'],
-                             scaler=True, config=config,
-                             scheduler_g=config['scheduler'])
-
+    trainer = Pix2PixTrainer(
+        Generator(config['model']['in_channels'], config['model']['out_channels']),
+        Discriminator(config['model']['out_channels']),
+        dataset, GeneratorLoss(config['model']['lambda']), DiscriminatorLoss(),
+        config['optimizer'], config['optimizer'], config['device'], scaler=True, config=config,
+        scheduler_g=config['scheduler']
+    )
+    
     trainer.train()
