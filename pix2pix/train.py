@@ -112,7 +112,7 @@ class Pix2PixTrainer(BaseTrainer):
             self.optimizer_g.zero_grad()
             fake = self.generator(inputs)
             d_fake = self.discriminator(inputs, fake)
-            loss_g = self.loss_fn_d(d_fake, fake, targets)
+            loss_g = self.loss_fn_g(d_fake, fake, targets)
 
         if self.scaler:
             self.generator.zero_grad()
