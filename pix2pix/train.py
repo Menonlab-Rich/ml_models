@@ -202,7 +202,7 @@ if __name__ == '__main__':
             config['model']['out_channels']),
         Discriminator(config['model']['out_channels']),
         dataset, GeneratorLoss(
-            config['model']['lambda']),
+            config['model']['l1_lambda']),
         DiscriminatorLoss(),
         config['optimizer'],
         config['optimizer'],
