@@ -31,6 +31,7 @@ class CNNBlock(nn.Module):
 class Discriminator(nn.Module):        
     def __init__(self, in_channels=3, out_channels=3, features=[64, 128, 256, 512]):
         super(Discriminator, self).__init__()
+        in_channels = in_channels * 2 # Concatenating the input and target images
         self.initial = nn.Sequential(
             nn.Conv2d(in_channels, features[0], kernel_size=4, stride=2, padding=1, padding_mode='reflect'),
             nn.LeakyReLU(0.2)
@@ -59,7 +60,7 @@ def test():
     x = torch.randn((1, 3, 256, 256))
     y = torch.randn((1, 3, 256, 256))
     gen = Generator(in_channels=3, out_channels=3)
-    disc = Discriminator(in_channels=6, out_channels=1)
+    disc = Discriminator(in_channels=3, out_channels=1)
     assert gen(x).shape == (1, 3, 256, 256), "Generator test failed"
     assert disc(x, y).shape == (1, 1, 30, 30), "Discriminator test failed"
     print("All tests passed")
