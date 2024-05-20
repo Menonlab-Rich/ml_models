@@ -44,7 +44,8 @@ class Pix2PixTrainer(BaseTrainer):
 
         super().__init__(**args)  # Initialize the base trainer with the arguments
         # The scaler for mixed precision training or None
-        self.scaler = amp.GradScaler() if scaler else None
+        self.scaler_d, self.scaler_g = amp.GradScaler() if scaler else None
+        self.scaler = scaler
         # The losses for the generator and discriminator
         self.losses = {'g': [], 'd': []}
         self.best_loss_d = float('inf')  # The best loss for the discriminator
@@ -87,36 +88,37 @@ class Pix2PixTrainer(BaseTrainer):
         # Train Discriminator
         with amp.autocast():
             self.optimizer_d.zero_grad()
-            output_real = self.discriminator(targets)
-            output_fake = self.discriminator(self.generator(inputs).detach())
-            loss_d_real = self.loss_fn_d(output_real, True)
-            loss_d_fake = self.loss_fn_d(output_fake, False)
-            loss_d = loss_d_real + loss_d_fake
+            fake = self.generator(inputs)
+            d_real = self.discriminator(inputs, targets)
+            d_fake = self.discriminator(inputs, fake.detach())
+            d_real_loss = self.loss_fn_d(d_real, True)
+            d_fake_loss = self.loss_fn_d(d_fake, False)
+            loss_d = (d_real_loss + d_fake_loss) / 2
 
-            if self.scaler:
-                self.scaler.scale(loss_d).backward()
-            else:
-                loss_d.backward()
-
-        self.optimizer_d.step()
+        if self.scaler:
+            self.discriminator.zero_grad()
+            self.scaler_d.scale(loss_d).backward()
+            torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 1.0)
+            self.scaler_d.step(self.optimizer_d)
+            self.scaler_d.update()
+        else:
+            loss_d.backward()
 
         # Train Generator
         with amp.autocast():
             self.optimizer_g.zero_grad()
-            generated_images = self.generator(inputs)
-            output_fake = self.discriminator(generated_images)
-            adversarial_loss = self.loss_fn_d(output_fake, True)
-            loss_g = self.loss_fn_g(output_fake, generated_images, targets)
-            loss_g = adversarial_loss + loss_g
-            if self.scaler:
-                self.scaler.scale(loss_g).backward()
-                torch.nn.utils.clip_grad_norm_(self.generator.parameters(), 1.0)
-                self.scaler.step(self.optimizer_g)
-                self.scaler.update()
-            else:
-                loss_g.backward()
-                torch.nn.utils.clip_grad_norm_(self.generator.parameters(), 1.0)
-                self.optimizer_g.step()
+            fake = self.generator(inputs)
+            d_fake = self.discriminator(inputs, fake)
+            loss_g = self.loss_fn_d(d_fake, fake, targets)
+
+        if self.scaler:
+            self.generator.zero_grad()
+            self.scaler_g.scale(loss_g).backward()
+            torch.nn.utils.clip_grad_norm_(self.generator.parameters(), 1.0)
+            self.scaler_g.step(self.optimizer_g)
+            self.scaler_g.update()
+        else:
+            loss_g.backward()
 
         return {'loss_g': loss_g.item(), 'loss_d': loss_d.item()}
 
@@ -195,11 +197,17 @@ if __name__ == '__main__':
         config['directories']['targets'],
         config['transform'])
     trainer = Pix2PixTrainer(
-        Generator(config['model']['in_channels'], config['model']['out_channels']),
+        Generator(
+            config['model']['in_channels'],
+            config['model']['out_channels']),
         Discriminator(config['model']['out_channels']),
-        dataset, GeneratorLoss(config['model']['lambda']), DiscriminatorLoss(),
-        config['optimizer'], config['optimizer'], config['device'], scaler=True, config=config,
-        scheduler_g=config['scheduler']
-    )
-    
+        dataset, GeneratorLoss(
+            config['model']['l1_lambda']),
+        DiscriminatorLoss(),
+        config['optimizer'],
+        config['optimizer'],
+        config['device'],
+        scaler=True, config=config,
+        scheduler_g=config['scheduler'])
+
     trainer.train()
