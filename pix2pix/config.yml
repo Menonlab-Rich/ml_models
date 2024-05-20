@@ -7,7 +7,7 @@ directories:
   results: results
   inputs: ../../data/transfer/preprocess/masks
   targets: ../../data/transfer/preprocess/tifs
-  model: ~/ml_models/pix2pix
+  model: ./model/ 
   create: true
 train:
   batch_size: 16
