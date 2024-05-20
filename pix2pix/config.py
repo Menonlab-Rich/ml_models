@@ -11,7 +11,7 @@ class CustomTransforms:
 
     def __init__(self):
         pass
-    
+
     class A_ToTensorWithDType(ImageOnlyTransform):
         def __init__(self, always_apply=True, p=1.0, dtype=torch.float32):
             super(CustomTransforms.A_ToTensorWithDType, self).__init__(
@@ -22,7 +22,7 @@ class CustomTransforms:
 
         def apply(self, target, **params):
             x = torch.tensor(target, dtype=self.dtype)
-            x = torch.unsqueeze(x, 0) # Add a channel dimension
+            x = torch.unsqueeze(x, 0)  # Add a channel dimension
             return x
 
     class TV_ToTensorWithDType():
@@ -78,9 +78,11 @@ class Config(BaseConfigHandler):
 
     def handle_scheduler(self, value):
         if value['kind'].lower() == 'step':
-            return lambda o: torch.optim.lr_scheduler.StepLR(o, **value['params'])
+            return lambda o: torch.optim.lr_scheduler.StepLR(
+                o, **value['params'])
         elif value['kind'].lower() == 'plateau':
-            return lambda o: torch.optim.lr_scheduler.ReduceLROnPlateau(o, **value['params'])
+            return lambda o: torch.optim.lr_scheduler.ReduceLROnPlateau(
+                o, **value['params'])
         else:
             raise ValueError(f"Unknown scheduler {value['kind']}")
 
@@ -177,15 +179,15 @@ adversarial_loss = torch.nn.BCEWithLogitsLoss()
 
 
 class GeneratorLoss(torch.nn.Module):
-    def __init__(self, lambda_=0.001):
+    def __init__(self, lambda_=100):
         super(GeneratorLoss, self).__init__()
-        self.lambda_adv = lambda_
+        self.l1_lambda = lambda_
 
     def forward(self, fake, generated, real):
         truthy = torch.ones_like(fake)
         adv_loss = adversarial_loss(fake, truthy)
         pixel_loss = pixel_wise_loss(generated, real)
-        return adv_loss * self.lambda_adv + pixel_loss
+        return adv_loss + self.l1_lambda * pixel_loss
 
 
 class DiscriminatorLoss(torch.nn.Module):
@@ -193,6 +195,9 @@ class DiscriminatorLoss(torch.nn.Module):
         super(DiscriminatorLoss, self).__init__()
 
     def forward(self, output, is_real):
-        return adversarial_loss(
-            output, torch.ones_like(output)
-            if is_real else torch.zeros_like(output))
+        if is_real:
+            truthy = torch.ones_like(output)
+        else:
+            truthy = torch.zeros_like(output)
+
+        return adversarial_loss(output, truthy)
