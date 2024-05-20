@@ -2,6 +2,9 @@ import yaml
 import torch
 from base.config import BaseConfigHandler, create_transform_function
 from albumentations import ImageOnlyTransform
+import logging
+
+logging.basicConfig(filename="pix2pix.log", level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class CustomTransforms:
@@ -182,22 +185,29 @@ class GeneratorLoss(torch.nn.Module):
     def __init__(self, lambda_=100):
         super(GeneratorLoss, self).__init__()
         self.l1_lambda = lambda_
+        self.passes = 0
 
     def forward(self, fake, generated, real):
         truthy = torch.ones_like(fake)
         adv_loss = adversarial_loss(fake, truthy)
         pixel_loss = pixel_wise_loss(generated, real)
-        return adv_loss + self.l1_lambda * pixel_loss
+        loss = adv_loss + self.l1_lambda * pixel_loss
+        self.passes += 1
+        logging.debug(f"Passes: {self.passes}, Adv Loss: {adv_loss}, Pixel Loss: {pixel_loss}, Total Loss: {loss}")
+        return loss
 
 
 class DiscriminatorLoss(torch.nn.Module):
     def __init__(self):
         super(DiscriminatorLoss, self).__init__()
-
+        self.passes = 0
+        
     def forward(self, output, is_real):
         if is_real:
             truthy = torch.ones_like(output)
         else:
             truthy = torch.zeros_like(output)
 
-        return adversarial_loss(output, truthy)
+        loss = adversarial_loss(output, truthy)
+        logging.debug(f"Passes: {self.passes}, Real: {is_real}, Loss: {loss}")
+        return loss
