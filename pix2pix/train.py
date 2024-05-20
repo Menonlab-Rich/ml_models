@@ -44,7 +44,10 @@ class Pix2PixTrainer(BaseTrainer):
 
         super().__init__(**args)  # Initialize the base trainer with the arguments
         # The scaler for mixed precision training or None
-        self.scaler_d, self.scaler_g = amp.GradScaler() if scaler else None
+        self.scaler_d, self.scaler_g = (
+            amp.GradScaler(),
+            amp.GradScaler()) if scaler else (
+            None, None)
         self.scaler = scaler
         # The losses for the generator and discriminator
         self.losses = {'g': [], 'd': []}
