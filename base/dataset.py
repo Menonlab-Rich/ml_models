@@ -60,6 +60,7 @@ class TransformSubset():
                 y = self.transform['target'](y)
 
             if not torch.is_tensor(x):
+                # convert the image to a float
                 x = ToTensorV2()(image=x)['image']
             if not torch.is_tensor(y):
                 y = ToTensorV2()(image=y)['image']

@@ -35,20 +35,18 @@ class BaseTrainer(ABC):
         '''
         pass
 
-    @abstractmethod
     def post_train(self, *args, **kwargs):
         '''
         Perform any post training steps
         '''
         pass
     
-    @abstractmethod
     def post_step(self, *args, **kwargs):
         '''
         Perform any post step steps
         '''
         pass
-    @abstractmethod
+    
     def post_epoch(self, *args, **kwargs):
         '''
         Perform any post epoch steps
@@ -56,18 +54,18 @@ class BaseTrainer(ABC):
         pass
     
     @property
+    @abstractmethod
     def training_data(self):
         '''
         Get the training data
         '''
         return getattr(self, '_training_data', None)
 
-    @abstractmethod
     def train(self, *args, **kwargs):
         '''
         Perform the training
         '''
-        self.pre_train()  # Perform any pre-training steps
+        self.pre_train()  #Perform any pre-training steps
         tq = tqdm(range(self.epochs), desc='Epochs', position=0, leave=True)
         res = None
         for _ in tq:
@@ -75,7 +73,6 @@ class BaseTrainer(ABC):
             res = self.post_epoch(tq=tq, res=_res)  # Perform any post epoch steps
         self.post_train(res=res)  # Perform any post training steps
 
-    @abstractmethod
     def train_step(self, *args, **kwargs) -> dict:
         '''
         Perform a single training step
@@ -101,3 +98,4 @@ class BaseTrainer(ABC):
         Plot the evaluation metrics
         '''
         raise NotImplementedError
+    

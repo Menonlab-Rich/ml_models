@@ -1,0 +1,11 @@
+# define the root directory that all other paths are relative to
+root_dir: &root_dir D:\CZI_scope\code\ml_models\encoder
+data_dir: D:\CZI_scope\code\preprocess\tifs
+out_dir: !path [*root_dir, 'output']
+input_channels: 1
+embedding_dim: 8
+learning_rate: 1.e-4
+batch_size: 32
+epochs: 16
+device: cpu # Example: 'cpu' or 'cuda'data_dir: *root_dir\data
+rescale: 0.3 # Scale the inputs to 1/3 their original size
