@@ -74,10 +74,12 @@ class EncoderTrainer(Trainer):
         total_loss = 0.0
         with torch.no_grad():
             for data in self.val_loader:
-                inputs, targets = data
+                inputs, targets, names, _ = data
+                classes = [name[:3] for name in names]
+                classes = [0 if '605' in cls else 1 for cls in classes]
                 encoded, decoded = self.model(inputs)
                 # Calculate the loss between the decoded and the target
-                loss = self.loss_fn(decoded, targets)
+                loss = self.loss_fn(decoded, targets, classes)
                 total_loss += loss.item()
         return {'val_loss': total_loss / len(self.val_loader)}
 
@@ -124,7 +126,7 @@ if __name__ == '__main__':
     dataset = EncoderDataset(InputLoader(config.data_dir), config.transform)
     model = Autoencoder(
         config.input_channels, config.embedding_dim,
-        rescale_factor=config.rescale)
+        size=config.resize).to(config.device) # Initialize the model
     optimizer = Adam(model.parameters(), lr=config.learning_rate)
     train_ds, val_ds = dataset.split(0.8, return_identifiers=True)
     # Save the training dataset
