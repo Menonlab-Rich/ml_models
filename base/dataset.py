@@ -11,18 +11,19 @@ import copy
 class GenericDataLoader():
     def __init__(self, *args, **kwargs):
         pass
-    
+
     def __len__(self):
         pass
-    
+
     def __getitem__(self, idx):
         pass
-    
+
     def get_ids(self, i=None):
         pass
-    
+
     def __iter__(self):
         pass
+
 
 class TransformSubset():
     '''
@@ -32,17 +33,29 @@ class TransformSubset():
     def __init__(
             self, subset: Subset,
             transform: Dict[str, Callable[[np.ndarray],
-                                          Any]] = None):
+                                          Any]] = None,
+            return_identifiers=False):
 
         # This class won't work with any other type of subset
         assert isinstance(
             subset.dataset, GenericDataset), "The subset must be from a GenericDataset object."
         self.subset = subset
         self.transform = transform
-        self.return_identifiers = False
+        self.return_identifiers = return_identifiers
 
     def __len__(self):
         return len(self.subset)
+
+    def _do_transform(self, x, y):
+        if self.transform:
+            if 'input' in self.transform:
+                if len(self.transform['input'].__code__.co_varnames) > 1:
+                    x, y = self.transform['input'](x, y)
+                else:
+                    x = self.transform['input'](x)
+            if 'target' in self.transform:
+                y = self.transform['target'](y)
+        return x, y
 
     def __getitem__(self, idx):
         # Get the item from the main dataset
@@ -51,21 +64,13 @@ class TransformSubset():
         if self.transform:
             x = self.subset.dataset.input_loader[idx]
             y = self.subset.dataset.target_loader[idx]
-            if 'input' in self.transform:
-                if len(self.transform['input'].__code__.co_varnames) > 1:
-                    x, y = self.transform['input'](x, y)
-                else:
-                    x = self.transform['input'](x)
-            if 'target' in self.transform:
-                y = self.transform['target'](y)
-
-            if not torch.is_tensor(x):
-                # convert the image to a float
-                x = ToTensorV2()(image=x)['image']
-            if not torch.is_tensor(y):
-                y = ToTensorV2()(image=y)['image']
+            x, y = self._do_transform(x, y)
         else:
             x, y = self.subset[idx]
+            if not torch.is_tensor(x):
+                x = torch.tensor(x, dtype=torch.float32)
+            if not torch.is_tensor(y):
+                y = torch.tensor(y, dtype=torch.float32)
         if self.return_identifiers:
             return x, y, self.subset.dataset.input_identifiers[idx], self.subset.dataset.target_identifiers[idx]
         return x, y
@@ -164,7 +169,7 @@ class GenericDataset(data.Dataset):
             # Apply transformation to target if specified
             if 'target' in train_transforms:
                 target = train_transforms['target'](target)
-        
+
         elif 'val' in self.transform and self._eval_mode:
             val_transforms = self.transform['val']
             # Apply transformation to input if specified
@@ -177,7 +182,7 @@ class GenericDataset(data.Dataset):
             # Apply transformation to target if specified
             if 'target' in val_transforms:
                 target = val_transforms['target'](target)
-                
+
         toTensor = ToTensorV2()
         # verify that input and target are both tensors and make them tensors if they are not
         if not torch.is_tensor(inp):
@@ -188,17 +193,17 @@ class GenericDataset(data.Dataset):
 
         return inp, target
 
-    def split(self, train_ratio: float) -> List[data.Subset]:
+    def split(self, train_ratio: float, return_identifiers=False) -> List[data.Subset]:
         train_size = int(train_ratio * len(self))
         val_size = len(self) - train_size
         train_set, val_set = data.random_split(self, [train_size, val_size])
         return TransformSubset(
-            train_set, self.transform['train']), TransformSubset(
-            val_set, self.transform['val'])
-            
+            train_set, self.transform['train'], return_identifiers), TransformSubset(
+            val_set, self.transform['val'], return_identifiers)
+
     def eval(self):
         self._eval_mode = True
-        
+
     def train(self):
         self._eval_mode = False
 
@@ -211,7 +216,6 @@ if __name__ == '__main__':
     import numpy as np
     from torch.utils.data import DataLoader
 
-
     def transform_input(image):
         return image / 255.0
 
@@ -223,7 +227,7 @@ if __name__ == '__main__':
 
     def transform_val_target(target):
         return np.where(target < 1, 1, 0)
-    
+
     class TestLoader(GenericDataLoader):
         def __init__(self):
             pass
@@ -232,15 +236,12 @@ if __name__ == '__main__':
             if i is not None:
                 return f"input_{i}"
             return [f"input_{i}" for i in range(3)]
-        
+
         def __len__(self):
             return 3
-        
+
         def __getitem__(self, idx):
             return np.zeros((10, 10, 3))
-        
-        
-        
 
     dataset = GenericDataset(
         input_loader=TestLoader(),

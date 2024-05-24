@@ -308,3 +308,49 @@ class MultiClassDiceLoss(nn.Module):
         loss = dice_loss(y_true, y_pred, eps=self.smoothing)
         if getattr(self, 'weights', None) is not None:
             loss = self.weights * loss
+            
+            
+class WeightedMSELoss(nn.Module):
+    def __init__(self, weights=None, scale=1.0):
+        '''
+        Create a weighted MSE loss function
+        
+        Parameters:
+        ----------
+        weights: torch.Tensor
+            The weights to use for the loss
+        scale: float
+            The scale factor to apply to the loss
+            Default: 1.0 (no scaling)
+            
+        Throws:
+        -------
+        AssertionError: If the input and target are not on the same device
+        AssertionError: If the weights are provided and not on the same device as the input
+        '''
+        super(WeightedMSELoss, self).__init__()
+        self.register_buffer('weight', weights)
+        self.register_buffer('scale', torch.tensor(scale)) # Register the scale factor
+
+    def forward(self, input, target, classes=None):
+        assert input.device == target.device, 'Input and target must be on the same device'
+        if self.weight is not None:
+            assert self.weight.device == input.device, 'Weights must be on the same device as input'
+            # Normalize the weights to sum to 1
+            # map the classes to the weights
+            if classes is not None:
+                device = self.weight.device
+                weights = torch.tensor(
+                    [self.weight[cls] for cls in classes],
+                    dtype=torch.float).to(device)  # Get the weights for the classes
+
+            normalized_weight = weights / weights.sum()
+            # Expand the weights to the same shape as the input for broadcasting
+            normalized_weight = normalized_weight.view(-1, 1, 1, 1).expand_as(input)
+            # Compute the weighted MSE
+            loss = (normalized_weight * (input - target) ** 2).mean()
+        else:
+            # Fallback to regular MSE if no weights are provided
+            loss = ((input - target) ** 2).mean()
+        return loss * self.scale # Scale the loss by the scale factor
+
