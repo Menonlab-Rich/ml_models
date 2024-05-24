@@ -82,16 +82,15 @@ class EncoderTrainer(Trainer):
         return {'val_loss': total_loss / len(self.val_loader)}
 
     def post_epoch(self, *args, **kwargs):
-        res = kwargs['res']
-        pbar = kwargs['tq']
-        pbar.set_postfix(res)
-        self.losses.append(res['val_loss'])
-        if self.best_loss < res['val_loss']:
-            self.best_loss = res['val_loss']
+        eval_res = self.evaluate()
+        loss = eval_res['val_loss']
+        self.losses.append(loss)
+        if self.best_loss < loss:
+            self.best_loss = loss
             utils.save_checkpoint(
                 self.model, self.optimizer, self.epoch, path.join(
                     self.checkpoint_dir, 'auto_encoder_best.pth.tar'))
-        return res
+        return eval_res
 
     def post_train(self, *args, **kwargs):
         epoch, model, optimizer = utils.load_checkpoint(
