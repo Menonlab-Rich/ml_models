@@ -4,7 +4,7 @@ from base.config import BaseConfigHandler, create_transform_function
 from albumentations import ImageOnlyTransform
 import logging
 
-logging.basicConfig(filename="pix2pix.log", level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename="pix2pix.log", level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class CustomTransforms:
@@ -193,7 +193,7 @@ class GeneratorLoss(torch.nn.Module):
         pixel_loss = pixel_wise_loss(generated, real)
         loss = adv_loss + self.l1_lambda * pixel_loss
         self.passes += 1
-        logging.debug(f"Passes: {self.passes}, Adv Loss: {adv_loss}, Pixel Loss: {pixel_loss}, Total Loss: {loss}")
+        logging.info(f"Passes: {self.passes}, Adv Loss: {adv_loss}, Pixel Loss: {pixel_loss}, Total Loss: {loss}")
         return loss
 
 
@@ -209,5 +209,6 @@ class DiscriminatorLoss(torch.nn.Module):
             truthy = torch.zeros_like(output)
 
         loss = adversarial_loss(output, truthy)
-        logging.debug(f"Passes: {self.passes}, Real: {is_real}, Loss: {loss}")
+        logging.info(f"Passes: {self.passes}, Real: {is_real}, Loss: {loss}")
+        self.passes += 1
         return loss

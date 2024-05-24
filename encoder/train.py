@@ -108,7 +108,7 @@ class EncoderTrainer(Trainer):
         plt.savefig(path.join(self.checkpoint_dir, 'val_loss.png'))
 
 if __name__ == '__main__':
-    config = Config(file_path=r"D:\CZI_scope\code\ml_models\encoder\config.yml")
+    config = Config(file_path='./config.yml')
     loss_fn = MSELoss()
     dataset = EncoderDataset(InputLoader(config.data_dir), config.transform)
     model = Autoencoder(config.input_channels, config.embedding_dim, rescale_factor=config.rescale)
