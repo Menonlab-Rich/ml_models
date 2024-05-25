@@ -23,6 +23,17 @@ class GenericDataLoader():
 
     def __iter__(self):
         pass
+    
+    def split(self, train_ratio: float, seed=16) -> List[data.Subset]:
+        ids = self.get_ids() # get all the ids
+        train_size = int(train_ratio * len(ids))
+        val_size = len(ids) - train_size
+        # randomly sample the ids with a seed
+        np.random.seed(seed)
+        train_ids = np.random.choice(ids, train_size, replace=False)
+        val_ids = np.setdiff1d(ids, train_ids)
+        return train_ids, val_ids
+        
 
 
 class TransformSubset():
@@ -88,6 +99,7 @@ class TransformSubset():
             attr = getattr(self.subset.dataset, name)
 
         return attr
+
 
 
 class GenericDataset(data.Dataset):
@@ -211,7 +223,78 @@ class GenericDataset(data.Dataset):
 # Assuming input_loader and target_loader are functions that load your data lists
 # dataset = GenericDataset(input_loader=lambda: load_data('inputs'), target_loader=lambda: load_data('targets'), transform={'input': transform_input, 'target': transform_target})
 
+class SimpleGenericDataset(data.Dataset):
+    '''
+    A generic dataset class that can be used with any input and target data.
+    '''
 
+    def __init__(
+            self, input_loader: GenericDataLoader,
+            target_loader: GenericDataLoader,
+            transform: Dict[str, Callable[[np.ndarray], Any]] = None
+        ):
+        '''
+        Create a new GenericDataset object.
+
+        Parameters:
+        ----------
+        input_loader: GenericDataLoader object that loads the input data.
+        target_loader: GenericDataLoader object that loads the target data.
+        '''
+        self.input_loader = input_loader
+        self.target_loader = target_loader
+        self.transform = self._standardize_transform(transform)
+        
+        if len(self.input_loader) != len(self.target_loader):
+            raise ValueError(
+                "Input and target datasets must have the same length.")
+
+    def __len__(self) -> int:
+        return len(self.input_loader)
+    
+    def unpack(self, inputs, targets):
+        '''
+        Unpack the input and target values if required
+        '''
+        return inputs, targets
+    
+    def _standardize_transform(self,
+                               transform: Dict
+                               [str, Callable[[np.ndarray],
+                                              Any]]) -> Dict[str,
+                                                             Callable[[np.ndarray],
+                                                                      Any]]:
+        '''
+        Standardize the transform dictionary to be of the form
+        {'train': {'input': lambda x: x, 'target': lambda x: x}, 'val': {'input': lambda x: x, 'target': lambda x: x}}
+        '''
+       
+        default_transform = {'input': lambda x: torch.Tensor(x), 'target': lambda x: torch.Tensor(x)},
+        if transform is None:
+            return default_transform
+        if 'input' not in transform:
+            transform['input'] = default_transform['train']
+        if 'target' not in transform:
+            transform['target'] = default_transform['target']
+        return transform
+    
+    def __getitem__(self, index) -> Any:
+        inp = self.input_loader[index]
+        target = self.target_loader[index]
+        inp, target, *rest = self.unpack(inp, target)
+        if len(self.transform['input'].__code__.co_varnames) > 1:
+            inp, target = self.transform['input'](inp, target)
+        else:
+            inp = self.transform['input'](inp)
+        
+        target = self.transform['target'](target)
+        
+        return inp, target, *rest
+        
+        
+
+    
+    
 if __name__ == '__main__':
     import numpy as np
     from torch.utils.data import DataLoader
