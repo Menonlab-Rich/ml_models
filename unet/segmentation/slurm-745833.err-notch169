@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 2, in <module>
-    from config import config
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/config.py", line 133, in <module>
-    power_jaccard = PowerJaccardLoss(config['model']['out_channels'], weights=weights, power=1.5)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py", line 64, in __init__
-    assert False, "registering weights as a buffer"
-AssertionError: registering weights as a buffer

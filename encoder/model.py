@@ -8,7 +8,7 @@ from torch import nn
 from torch.nn import functional as F
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_channels, embedding_dim, rescale_factor=1.0):
+    def __init__(self, input_channels, embedding_dim, rescale_factor=1.0, size=None):
         '''
         A simple autoencoder model
         Args:
@@ -18,7 +18,9 @@ class Autoencoder(nn.Module):
                 default: 1.0 (no rescaling)
         '''
         super(Autoencoder, self).__init__()
-        self.rescale_factor = rescale_factor
+        if size is not None:
+            self.register_buffer('size', torch.tensor(size, dtype=torch.long))
+        self.register_buffer('rescale_factor', torch.tensor(rescale_factor, dtype=torch.float32))
         self._encoder_model = nn.Sequential(
             nn.Conv2d(input_channels, 64, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
@@ -33,10 +35,17 @@ class Autoencoder(nn.Module):
         )
 
     def forward(self, x):
-        mode = 'bilinear' if self.rescale_factor > 1.0 else 'nearest'
-        F.interpolate(x, scale_factor=self.rescale_factor, mode=mode)
+        original_size = x.shape[-2:]
+        if hasattr(self, 'size'):
+            mode = 'bilinear' if self.size[-1] > x.shape[-1] else 'nearest'
+            x = F.interpolate(x, size=list(self.size), mode=mode)
+        else:
+            mode = 'bilinear' if self.rescale_factor > 1.0 else 'nearest'
+            x = F.interpolate(x, scale_factor=self.rescale_factor, mode=mode)
         embedding = self._encoder_model(x)
         reconstruction = self._decoder_model(embedding)
+        if hasattr(self, 'size'):
+            reconstruction = F.interpolate(reconstruction, size=original_size, mode=mode)
         return embedding, reconstruction
     
     @property

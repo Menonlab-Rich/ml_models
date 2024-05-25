@@ -1,15 +1,0 @@
-/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py:15: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
-  self.weights = torch.tensor(weights if weights is not None else [
-/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py:15: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
-  self.weights = torch.tensor(weights if weights is not None else [
-  0%|          | 0/822 [00:00<?, ?it/s]  0%|          | 0/822 [00:03<?, ?it/s]
-Traceback (most recent call last):
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 132, in <module>
-    trainer.train()
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 79, in train
-    self.train_epoch()
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 104, in train_epoch
-    self.scaler.step(self.optimizer)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/cuda/amp/grad_scaler.py", line 449, in step
-    len(optimizer_state["found_inf_per_device"]) > 0
-AssertionError: No inf checks were recorded for this optimizer.

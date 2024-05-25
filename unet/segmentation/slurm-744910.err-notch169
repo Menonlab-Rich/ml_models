@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 2, in <module>
-    from config import config
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/config.py", line 9, in <module>
-    from base.loss import PowerJaccardLoss
-ImportError: cannot import name 'PowerJaccardLoss' from 'base.loss' (/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py)

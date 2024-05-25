@@ -1,15 +1,0 @@
-  0%|          | 0/822 [00:00<?, ?it/s]  0%|          | 0/822 [00:01<?, ?it/s]
-Traceback (most recent call last):
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 132, in <module>
-    trainer.train()
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 79, in train
-    self.train_epoch()
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/segmentation/train.py", line 100, in train_epoch
-    loss = self.loss_fn(outputs, targets)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/.micromamba/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "/uufs/chpc.utah.edu/common/home/u0977428/ml_models/base/loss.py", line 30, in forward
-    dot_product = torch.sum(y_true * y_pred, dim=[0, 2, 3])
-RuntimeError: The size of tensor a (256) must match the size of tensor b (3) at non-singleton dimension 3
