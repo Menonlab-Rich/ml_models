@@ -5,3 +5,5 @@ data
 dst.json
 temp
 results/
+*.slurm
+slurm-*
