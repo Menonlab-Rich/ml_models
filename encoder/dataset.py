@@ -6,6 +6,12 @@ import numpy as np
 from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule
 import warnings
+from config import Config, CONFIG_FILE_PATH
+import torch
+
+config = Config(CONFIG_FILE_PATH)
+classes = list(config.weights.keys())
+
 
 
 class InputLoader(GenericDataLoader):
@@ -45,7 +51,7 @@ class InputLoader(GenericDataLoader):
 
     def _read(self, file):
         file = path.basename(file)  # make sure that the file is just the name
-        return np.array(Image.open(path.join(self.directory, file))), file
+        return np.array(Image.open(path.join(self.directory, file))), torch.tensor(classes.index(file[:3]))
 
 
 class EncoderDataset(GenericDataset):
@@ -64,9 +70,12 @@ class EncoderDataModule(LightningDataModule):
             self, input_loader: InputLoader, prediction_loader=None,
             transforms=None, batch_size=32):
         super(EncoderDataModule, self).__init__()
-        self.train_data, self.val_data = input_loader.split(0.8)  # Split the data
-        self.train_loader = InputLoader(input_loader.directory, files=self.train_data)
-        self.val_loader = InputLoader(input_loader.directory, files=self.val_data)
+        self.train_data, self.val_data = input_loader.split(
+            0.8)  # Split the data
+        self.train_loader = InputLoader(
+            input_loader.directory, files=self.train_data)
+        self.val_loader = InputLoader(
+            input_loader.directory, files=self.val_data)
         self.transforms = transforms
         self.batch_size = batch_size
         self.prediction_loader = prediction_loader
@@ -91,21 +100,24 @@ class EncoderDataModule(LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(
-            self.train_set, batch_size=self.batch_size, shuffle=True)
+            self.train_set, batch_size=self.batch_size, shuffle=True,
+            num_workers=7, persistent_workers=True)
 
     def val_dataloader(self):
         return DataLoader(
-            self.val_set, batch_size=self.batch_size, shuffle=False)
+            self.val_set, batch_size=self.batch_size, shuffle=False,
+            num_workers=7, persistent_workers=True)
 
     def test_dataloader(self):
         return DataLoader(
-            self.val_set, batch_size=self.batch_size, shuffle=False)
+            self.val_set, batch_size=self.batch_size, shuffle=False,
+            num_workers=7, persistent_workers=True)
 
     def predict_dataloader(self):
         if self.prediction_set is not None:
             return DataLoader(
-                self.prediction_set, batch_size=self.batch_size, shuffle=False)
+                self.prediction_set, batch_size=self.batch_size, shuffle=False,
+                num_workers=7, persistent_workers=True)
         else:
             warnings.warn('No prediction set provided. Using validation set.')
             return self.val_dataloader()
-

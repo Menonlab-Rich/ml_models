@@ -52,24 +52,16 @@ class GenericDataLoader():
         return train_ids, val_ids
 
 
-class Transformer():
-    def __init__(
-            self, input_transform: Callable[[List[np.ndarray]],
-                                            Any],
-            target_transform: Callable[[np.ndarray],
-                                       Any]):
-        self.input_transform = input_transform
-        self.target_transform = target_transform
-        # Occasionally we may want to transform both inputs and targets together
-        # In this case, the input_transform function should accept two arguments
-        self.transform_inputs_and_targets_together = len(
-            self.input_transform.__code__.co_varnames) > 1
+class Transformer:
+    def __init__(self, train_transform, val_transform):
+        self.train_transform = train_transform
+        self.val_transform = val_transform
 
-    def __call__(self, inputs, targets):
-        if self.transform_inputs_and_targets_together:
-            return self.input_transform(
-                inputs, targets), self.target_transform(targets)
-        return self.input_transform(inputs), self.target_transform(targets)
+    def apply_train(self, **kwargs):
+        raise NotImplementedError
+    
+    def apply_val(self, x):
+        raise NotImplementedError
 
 
 class GenericDataset(data.Dataset):
