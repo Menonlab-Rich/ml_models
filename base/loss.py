@@ -1,10 +1,8 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-
-import torch
-from torch import nn
-import torch.nn.functional as F
+from typing import Type, Union, Callable
+import pytorch_lightning as pl
 
 """Common image segmentation losses.
 """
@@ -354,3 +352,26 @@ class WeightedMSELoss(nn.Module):
             loss = ((input - target) ** 2).mean()
         return loss * self.scale # Scale the loss by the scale factor
 
+def with_loss_fn(loss_fn: Union[str, Callable, nn.Module],
+                 **kwargs) -> Callable[[Type[pl.LightningModule]],
+                                       Type[pl.LightningModule]]:
+    '''
+    A decorator to add a loss function to a LightningModule
+    '''
+    def decorator(cls: Type[pl.LightningDataModule]) -> Type[pl.LightningDataModule]:
+        if isinstance(loss_fn, str):
+            loss_fn_instance = globals()[loss_fn](**kwargs)
+        else:
+            loss_fn_instance = loss_fn(
+                **kwargs) if callable(loss_fn) else loss_fn
+
+        class WrappedClass(cls, pl.LightningModule):
+            def __init__(self, *args, **init_kwargs):
+                super(WrappedClass, self).__init__(*args, **init_kwargs)
+
+            def loss_fn(self, *args, **kwargs):
+                return loss_fn_instance(*args, **kwargs)
+
+        return WrappedClass
+
+    return decorator

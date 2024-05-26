@@ -1,7 +1,7 @@
 from model import WeightedLitAutoencoder, with_loss_fn, WeightedMSEMetric
 from dataset import EncoderDataModule, InputLoader
 from config import Config
-from lightning.pytorch.loggers import NeptuneLogger
+from pytorch_lightning.loggers import NeptuneLogger
 from os import environ
 from pytorch_lightning import Trainer
 
