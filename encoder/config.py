@@ -1,4 +1,5 @@
 from base.config import BaseConfigHandler
+from base.dataset import Transformer
 from os import path as os_path
 import yaml
 import albumentations as A
@@ -23,16 +24,19 @@ class Config(BaseConfigHandler):
             A.ToFloat(always_apply=True),
             ToTensorV2()
         ])
+        
+        def transform(x):
+            return pipeline(image=x)['image']
 
         self.transform = {
-            "train": {
-                'input': lambda x: pipeline(image=x)['image'],
-                'target': lambda y: pipeline(image=y)['image']
-            },
-            "val": {
-                'input': lambda x: pipeline(image=x)['image'],
-                'target': lambda y: pipeline(image=y)['image']
-            }
+            "train": Transformer(
+                transform,
+                transform
+            ),
+            "val": Transformer(
+                transform,
+                transform
+            )
         }
 
     def __getattr__(self, name: str) -> any:

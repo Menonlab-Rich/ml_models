@@ -1,4 +1,4 @@
-from model import WeightedLitAutoencoder, with_loss_fn, WeightedMSEMetric
+from model import WeightedLitAutoencoder
 from dataset import EncoderDataModule, InputLoader
 from config import Config
 from pytorch_lightning.loggers import NeptuneLogger
@@ -13,11 +13,12 @@ def main(config: Config, n_files: int = None):
         input_loader, batch_size=config.batch_size,
         transforms=config.transform)
 
-    model = with_loss_fn(WeightedMSEMetric,
-                         weights=list(config.weights.values()))(
-        WeightedLitAutoencoder)(input_channels=config.input_channels,
-                                embedding_dim=config.embedding_dim, size=config.resize,
-                                lr=config.learning_rate, class_names=list(config.weights.keys()),)
+    model = WeightedLitAutoencoder(input_channels=config.input_channels,
+                                   embedding_dim=config.embedding_dim,
+                                   size=config.resize, lr=config.learning_rate,
+                                   weights=list(config.weights.values()),
+                                   loss_scale=config.loss_scale,
+                                   class_names=list(config.weights.keys()),)
 
     logger = NeptuneLogger(
         api_key=environ.get("NEPTUNE_API_TOKEN"),  # replace with your own
@@ -25,9 +26,24 @@ def main(config: Config, n_files: int = None):
         tags=["training", "autoencoder"],  # optional
     )
 
-    Trainer(max_epochs=config.epochs, logger=logger).fit(model, datamodule=data_module)
+    debug = config.debug
+    if debug['enable']:
+        Trainer(
+            fast_dev_run=debug['fast'],
+            limit_train_batches=debug['train_batches'],
+            limit_val_batches=debug['val_batches'],
+        ).fit(model, data_module)
+
+    else:
+        Trainer(
+            logger=logger,
+            max_epochs=config.epochs,
+            precision=config.precision,
+            accelerator=config.accelerator,
+            progress_bar_refresh_rate=1,
+        ).fit(model, data_module)
 
 
 if __name__ == '__main__':
-    config = Config(r"./config.yml")
+    config = Config(r"D:\CZI_scope\code\ml_models\encoder\config.yml")
     main(config)
