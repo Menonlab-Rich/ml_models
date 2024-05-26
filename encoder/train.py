@@ -45,5 +45,5 @@ def main(config: Config, n_files: int = None):
 
 
 if __name__ == '__main__':
-    config = Config(r"D:\CZI_scope\code\ml_models\encoder\config.yml")
+    config = Config("config.yml")
     main(config)
