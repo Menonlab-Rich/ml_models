@@ -159,14 +159,8 @@ class WeightedLitAutoencoder(LitAutoencoder):
 
     def _step(self, batch, batch_idx, log_metric: str):
         inputs, targets, rest = batch
-        names = rest[0] # Get the names
-        names = [name[:3] for name in names]
-        class_map = {name: i for i, name in enumerate(self.class_names)}
-        # Get the class for each image
-        classes = torch.tensor(
-            [class_map[name] for name in names],
-            dtype=torch.long).to(
-            self.device)
+        classes = rest[0] # classes are the last element in the batch
+        classes = classes.to(self.device) # Move to the device
         _, reconstruction = self(inputs)
         loss = self.loss_fn(reconstruction, targets, classes)
         accuracy = self._compute_accuracy(reconstruction, targets)
