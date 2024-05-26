@@ -11,66 +11,90 @@ from tqdm import tqdm
 import logging
 
 
+import logging
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.utils.data as td
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+from typing import Literal
+
 class Evaluator:
     def __init__(self, model: nn.Module, loader: td.DataLoader,
-                 loss_fn: nn.Module, device: torch.device, x_axis: Literal['epoch', 'file'] = 'epoch',
-                 report=False, report_path=None):
+                 loss_fn: nn.Module, device: torch.device,
+                 x_axis: Literal['epoch', 'file'] = 'epoch', report=False,
+                 report_path=None):
         if x_axis not in ('epoch', 'file'):
             raise ValueError('x_axis must be either "epoch" or "file"')
+        
         self.model = model
         self.loader = loader
         self.loss_fn = loss_fn
         self.device = device
-        self.percent_correct_per_epoch = []
-        self.losses_per_epoch = []
-        self.x_axis = x_axis.lower() # Ensure the x_axis is lowercase for comparison
+        self.x_axis = x_axis.lower()
         self.report = report
         self.report_path = report_path
+        self.percent_correct_per_epoch = []
+        self.losses_per_epoch = []
+        self.confusion_matrix = np.zeros((2, 2))
 
         if self.report:
-            logging.basicConfig(filename=self.report_path, level=logging.INFO, format='%(asctime)s - %(message)s')
+            logging.basicConfig(
+                filename=self.report_path, level=logging.INFO,
+                format='%(asctime)s - %(message)s')
 
-    def evaluate(self) -> float:
+    def evaluate(self, np_file='confusion_matrix_bce.npy', bce=True) -> float:
         self.model.eval()
         self.model.to(self.device)
         running_loss = 0.0
-        self.loader.dataset.return_identifiers = False
         total = 0
         total_correct = 0
+
+        self.loader.dataset.return_identifiers = False
         tqdm_loader = tqdm(self.loader)
+        
         with torch.no_grad():
             for i, (inputs, targets) in enumerate(tqdm_loader):
-                inputs, targets = inputs.to(
-                    self.device), targets.to(
-                    self.device)
+                inputs, targets = inputs.to(self.device), targets.to(self.device).float()
                 outputs = self.model(inputs)
-                
+
                 loss = self.loss_fn(outputs, targets)
                 running_loss += loss.item()
                 total += targets.size(0)
-                total_correct += (torch.argmax(outputs, 0)
-                                  == targets).sum().item()
+                
+                probabilities = torch.sigmoid(outputs) if bce else torch.argmax(outputs, 1).float()
+                labels = (probabilities > 0.3).float()
+                total_correct += (labels == targets).sum().item()
+
                 tqdm_loader.set_postfix({'loss': loss.item(), 'accuracy': total_correct / total})
+
+                for p, t in zip(labels, targets):
+                    self.confusion_matrix[int(t), int(p)] += 1
+
                 if self.report:
-                    logging.info(f'Batch {i}: Loss: {loss.item()}, Accuracy: {total_correct / total}')
-                    # Get the file names for the batch
-                    batch_size = inputs.size(0)
-                    ids = self.loader.dataset.input_loader.get_ids(i*batch_size, batch_size)
-                    files = '\n'.join(ids)
-                    logging.info(f'Files: \n{files}')
+                    self._log_batch_info(i, inputs.size(0), loss.item(), total_correct / total)
+
                 if self.x_axis == 'file':
                     self.percent_correct_per_epoch.append(total_correct / total)
                     self.losses_per_epoch.append(loss.item())
+
         if self.x_axis == 'epoch':
             self.percent_correct_per_epoch.append(total_correct / total)
-        loss = running_loss / len(self.loader)
-        self.losses_per_epoch.append(loss)
-        return loss
+        
+        self.losses_per_epoch.append(running_loss / len(self.loader))
+        np.save(np_file, self.confusion_matrix)
 
+        return running_loss / len(self.loader)
+
+    def _log_batch_info(self, batch_idx, batch_size, loss, accuracy):
+        logging.info(f'Batch {batch_idx}: Loss: {loss}, Accuracy: {accuracy}')
+        ids = self.loader.dataset.input_loader.get_ids(batch_idx * batch_size, batch_size)
+        ids_str = '\n'.join(ids)
+        logging.info(f'Batch {batch_idx} IDs:\n{ids_str}')
     def plot(self, metrics='both', output_path: str = None):
-        fig, ax = plt.subplots(
-            2 if metrics == 'both' else 1, 1,
-            figsize=(10, 5 if metrics == 'both' else 10))
+        fig, ax = plt.subplots(2 if metrics == 'both' else 1, 1, figsize=(10, 5 if metrics == 'both' else 10))
+
         if metrics in ('both', 'accuracy'):
             ax_acc = ax[0] if metrics == 'both' else ax
             ax_acc.plot(self.percent_correct_per_epoch)
@@ -91,7 +115,6 @@ class Evaluator:
         else:
             plt.show()
 
-
 def save_data(dataset: GenericDataset, name: str) -> None:
     ds_obj = {
         'inputs': dataset.input_loader.get_ids(),
@@ -110,12 +133,14 @@ def prepare_tensor_for_plotting(tensor: torch.Tensor) -> np.ndarray:
     return tensor.permute(1, 2, 0).cpu().numpy()
 
 
-def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, name: str) -> None:
+def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer,
+                    epoch: int, name: str) -> None:
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict()
     }, name)
+
 
 def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader,
              loss_fn: nn.Module, device: torch.device) -> float:
@@ -194,6 +219,7 @@ def plot_model_predictions(
     else:
         plt.show()
 
+
 def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, device,
                     filename: str) -> int:
     """
@@ -211,6 +237,7 @@ def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, device,
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     return checkpoint['epoch']
+
 
 if __name__ == '__main__':
     from dataset import GenericDataset

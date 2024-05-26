@@ -6,20 +6,22 @@ import albumentations as A
 import numpy as np
 from dataset import GenericDataLoader
 import cv2
+from glob import glob
+from albumentations.pytorch import ToTensorV2
 
 _cwd = getcwd()
 # ROOT_DIR = path.dirname(_cwd)
 ROOT_DIR = r'D:\CZI_scope\code\ml_models\resnet'
 DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 MULTI_GPU = False
-INPUT_PATH = r'D:\CZI_scope\code\preprocess_training\validation'
+INPUT_PATH = r'D:\CZI_scope\code\preprocess\validation\*-close*.tif'
 # MODEL_PATH = path.join(_cwd, 'model.tar')
-MODEL_PATH = r'D:\CZI_scope\code\ml_models\resnet\model.tar'
+MODEL_PATH = r'D:\CZI_scope\code\ml_models\resnet\bce_model.tar'
 EPOCHS = 10
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
 NUM_CLASSES = 1
-CLASS_MAPPING = {0: '605', 1: '625'}
+CLASS_MAPPING = {1: '605', 0: '625'}
 PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
 NUM_CHANNELS = 1
 # DST_SAVE_DIR = path.join(_cwd, 'data')
@@ -30,8 +32,14 @@ REPORT_PATH = path.join(_cwd, 'logs', 'resnet_prediction_report.txt')
 class InputLoader(GenericDataLoader):
     def __init__(self, directory):
         self.directory = directory
-        self.files = sorted(
-            [f for f in listdir(directory) if f.endswith('.tif')])
+        # Check if the path is actually a directory
+        if not path.isdir(directory):
+            # Could be a glob pattern
+            self.files = sorted(glob(directory))
+            self.directory = path.dirname(directory)
+        else:
+            self.files = sorted(
+                [f for f in listdir(directory) if f.endswith('.tif')])
 
     def __len__(self):
         return len(self.files)
@@ -56,8 +64,12 @@ class InputLoader(GenericDataLoader):
 
 class TargetLoader(GenericDataLoader):
     def __init__(self, directory):
-        files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
-        self.classes = [1 if x[:3] == CLASS_MAPPING[0] else 1 for x in files]
+        if not path.isdir(directory):
+            self.files = sorted(glob(directory))
+        else:
+            self.files = sorted(
+                [f for f in listdir(directory) if f.endswith('.tif')])
+        self.classes = [0 if x[:3] == CLASS_MAPPING[0] else 1 for x in self.files]
 
     def __len__(self):
         return len(self.classes)
@@ -87,6 +99,7 @@ INPUT_TRANSFORMS = A.Compose([
     # Add transforms here to augment the input data for training
     A.RandomBrightnessContrast(p=.5),
     A.GaussNoise(var_limit=(1e-4, 1e-3), p=.5),
+    ToTensorV2(),
 ])
 
 VAL_TRANSFORMS = A.Compose(
@@ -94,7 +107,9 @@ VAL_TRANSFORMS = A.Compose(
      A.LongestMaxSize(max_size=256, always_apply=True),
      A.PadIfNeeded(
          256, 256, always_apply=True, border_mode=cv2.BORDER_CONSTANT,
-        value=0),])
+        value=0),
+        ToTensorV2(),
+     ])
 
 
 TRANSFORMS = {

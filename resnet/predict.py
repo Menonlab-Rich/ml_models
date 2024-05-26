@@ -70,7 +70,7 @@ def predict():
     dataset.eval()
     loader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=False)
     evaluator = utils.Evaluator(model, loader, config.LOSS_FN, config.DEVICE, x_axis='file', report=True, report_path=config.REPORT_PATH)
-    evaluator.evaluate()
+    evaluator.evaluate(np_file=path.join(config.DST_SAVE_DIR, 'static_matrix_bce.npy'))
     evaluator.plot(metrics='both', output_path=config.PREDICTIONS_PATH)
     
     
