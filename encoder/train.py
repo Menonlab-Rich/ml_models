@@ -25,7 +25,7 @@ def main(config: Config, n_files: int = None):
         tags=["training", "autoencoder"],  # optional
     )
 
-    Trainer(max_epochs=config.epochs, logger=logger).fit(model, data_module)
+    Trainer(max_epochs=config.epochs, logger=logger).fit(model, datamodule=data_module)
 
 
 if __name__ == '__main__':
