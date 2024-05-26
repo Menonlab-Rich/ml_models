@@ -5,7 +5,6 @@ from typing import Callable, Sequence, Any, Dict
 import numpy as np
 from typing import List
 from torch.utils.data import Subset
-import copy
 
 
 class GenericDataLoader():

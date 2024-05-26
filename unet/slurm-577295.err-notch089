@@ -1,0 +1,4 @@
+/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/dataset.py:175: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  input_tensor, target_tensor = map(tensor, (input_, target_))
+/uufs/chpc.utah.edu/common/home/u0977428/ml_models/unet/model.py:81: UserWarning: x is larger than 256x256, this may cause memory issues
+  warnings.warn(

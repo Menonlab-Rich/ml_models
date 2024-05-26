@@ -4,19 +4,19 @@ from os import path, getcwd, listdir
 from PIL import Image
 import albumentations as A
 import numpy as np
+from glob import glob
 from dataset import GenericDataLoader
 import cv2
 from glob import glob
 from albumentations.pytorch import ToTensorV2
 
 _cwd = getcwd()
-# ROOT_DIR = path.dirname(_cwd)
-ROOT_DIR = r'D:\CZI_scope\code\ml_models\resnet'
+ROOT_DIR = path.dirname(_cwd)
+#ROOT_DIR = r'D:\CZI_scope\code\ml_models\resnet'
 DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 MULTI_GPU = False
-INPUT_PATH = r'D:\CZI_scope\code\preprocess\validation\*-close*.tif'
-# MODEL_PATH = path.join(_cwd, 'model.tar')
-MODEL_PATH = r'D:\CZI_scope\code\ml_models\resnet\bce_model.tar'
+INPUT_PATH = '/scratch/general/nfs1/u0977428/transfer/preprocess/tifs/'
+MODEL_PATH = path.join(_cwd, 'model.tar')
 EPOCHS = 10
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
@@ -24,8 +24,8 @@ NUM_CLASSES = 1
 CLASS_MAPPING = {1: '605', 0: '625'}
 PREDICTIONS_PATH = path.join(_cwd, 'predictions.png')
 NUM_CHANNELS = 1
-# DST_SAVE_DIR = path.join(_cwd, 'data')
-DST_SAVE_DIR = r'D:\CZI_scope\code\ml_models\resnet\data'
+DST_SAVE_DIR = path.join(_cwd, 'data')
+#DST_SAVE_DIR = r'D:\CZI_scope\code\ml_models\resnet\data'
 REPORT_PATH = path.join(_cwd, 'logs', 'resnet_prediction_report.txt')
 
 
@@ -129,5 +129,4 @@ TRANSFORMS = {
 LOSS_FN = nn.BCEWithLogitsLoss()
 
 if __name__ == 'config':
-    assert not MULTI_GPU or cuda.is_available(
-    ) and cuda.device_count() > 1, 'Cannot use multiple GPUs'
+    assert not MULTI_GPU or cuda.is_available() and cuda.device_count() > 1, 'Cannot use multiple GPUs'

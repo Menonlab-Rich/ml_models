@@ -1,7 +1,7 @@
 from model import WeightedLitAutoencoder, with_loss_fn, WeightedMSEMetric
 from dataset import EncoderDataModule, InputLoader
 from config import Config
-from lightning.pytorch.loggers import NeptuneLogger
+from pytorch_lightning.loggers import NeptuneLogger
 from os import environ
 from pytorch_lightning import Trainer
 
@@ -29,5 +29,5 @@ def main(config: Config, n_files: int = None):
 
 
 if __name__ == '__main__':
-    config = Config(r"D:\CZI_scope\code\ml_models\encoder\config.yml")
+    config = Config(r"./config.yml")
     main(config)
