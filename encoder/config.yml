@@ -1,15 +1,25 @@
 # define the root directory that all other paths are relative to
 root_dir: &root_dir .
-data_dir: ../../data/transfer/preprocess/tifs
+data_dir: D:\CZI_scope\code\preprocess\tifs
 out_dir: !path [*root_dir, 'output']
 input_channels: 1
 embedding_dim: 8
 learning_rate: 1.e-4
 batch_size: 32
 epochs: 2
-device: cuda # Example: 'cpu' or 'cuda'data_dir: *root_dir\data
+device: cpu # Example: 'cpu' or 'cuda'data_dir: *root_dir\data
 resize: [128, 128] # resize the input image
 weights:
   "605": 0.25
   "625": 0.75
 loss_scale: 100 # What to scale the loss by
+gpus: 1 # How many gpus to use
+precision: '16-mixed' # 16, 32, 64, 'full', 'double', '16-mixed', '16-bf16'
+accelerator: 'auto' # 'cpu', 'gpu', 'tpu', 'amp', 'auto'
+
+debug:
+  enable: True
+  fast: True
+  epochs: 5
+  train_batches: 0.05
+  val_batches: 0.01

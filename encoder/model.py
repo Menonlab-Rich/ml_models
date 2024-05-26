@@ -13,39 +13,14 @@ from torchmetrics.image import StructuralSimilarityIndexMeasure as SSIM, PeakSig
 from typing import Union, List, Type, Callable
 
 
-def with_loss_fn(loss_fn: Union[str, Callable, nn.Module],
-                 **kwargs) -> Callable[[Type[pl.LightningModule]],
-                                       Type[pl.LightningModule]]:
-    '''
-    A decorator to add a loss function to a LightningModule
-    '''
-    def decorator(cls: Type[pl.LightningDataModule]) -> Type[pl.LightningDataModule]:
-        if isinstance(loss_fn, str):
-            loss_fn_instance = globals()[loss_fn](**kwargs)
-        else:
-            loss_fn_instance = loss_fn(
-                **kwargs) if callable(loss_fn) else loss_fn
-
-        class WrappedClass(cls, pl.LightningModule):
-            def __init__(self, *args, **init_kwargs):
-                super(WrappedClass, self).__init__(*args, **init_kwargs)
-
-            def loss_fn(self, *args, **kwargs):
-                return loss_fn_instance(*args, **kwargs)
-
-        return WrappedClass
-
-    return decorator
-
-
 class WeightedMSEMetric(Metric):
     def __init__(self, weights=None, scale=1.0, dist_sync_on_step=False):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
-
+        
         self.add_state(
-            "sum_loss", default=torch.tensor(0.0),
+            "sum_loss", default=torch.tensor(0.0).to(self.device),
             dist_reduce_fx="sum")
-        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0).to(self.device), dist_reduce_fx="sum")
 
         if weights is not None:
             weights = torch.tensor(weights, dtype=torch.float).to(self.device)
@@ -80,13 +55,15 @@ class WeightedMSEMetric(Metric):
         return self.sum_loss / self.total
 
 
-@with_loss_fn(MeanSquaredError)
+
 class LitAutoencoder(pl.LightningModule):
     def __init__(
             self, input_channels: int, embedding_dim: int,
             rescale_factor=1.0, size=None, **hyper_params) -> None:
         super().__init__()
 
+        self.loss_fn = MeanSquaredError() # Default loss function
+        
         default_hyper_params = {
             'lr': 1e-3,
             'input_channels': input_channels,
@@ -161,7 +138,7 @@ class LitAutoencoder(pl.LightningModule):
 
 
 class WeightedLitAutoencoder(LitAutoencoder):
-    def __init__(self, class_names: List[str], **kwargs):
+    def __init__(self, class_names: List[str], weights: List[float], **kwargs):
         '''
         LightiningModule for a weighted autoencoder
         Args:
@@ -170,6 +147,10 @@ class WeightedLitAutoencoder(LitAutoencoder):
         '''
         super().__init__(**kwargs)
         self.class_names = class_names
+        if 'loss_scale' in kwargs:
+            self.loss_fn = WeightedMSEMetric(weights=weights, scale = self.hparams['loss_scale']).to(self.device) # Custom loss function
+        else:
+            self.loss_fn = WeightedMSEMetric(weights=weights).to(self.device)
 
     def _compute_accuracy(self, input, target):
         ssim = SSIM()(input, target)
@@ -177,7 +158,8 @@ class WeightedLitAutoencoder(LitAutoencoder):
         return {'ssim': ssim, 'psnr': psnr}
 
     def _step(self, batch, batch_idx, log_metric: str):
-        inputs, targets, names = batch
+        inputs, targets, rest = batch
+        names = rest[0] # Get the names
         names = [name[:3] for name in names]
         class_map = {name: i for i, name in enumerate(self.class_names)}
         # Get the class for each image
