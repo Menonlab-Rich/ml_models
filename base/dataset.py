@@ -49,6 +49,16 @@ class GenericDataLoader():
         # Get the remaining IDs for the validation set
         val_ids = np.setdiff1d(ids, train_ids)
 
+        return self.post_split(train_ids, val_ids)
+
+    def post_split(self, train_ids, val_ids):
+        """
+        Post-split method to be called after splitting the dataset.
+
+        Parameters:
+            train_ids (np.ndarray): Array of training IDs.
+            val_ids (np.ndarray): Array of validation IDs.
+        """
         return train_ids, val_ids
 
 
