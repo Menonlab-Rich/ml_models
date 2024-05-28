@@ -152,9 +152,12 @@ class WeightedLitAutoencoder(LitAutoencoder):
         else:
             self.loss_fn = WeightedMSEMetric(weights=weights).to(self.device)
 
-    def _compute_accuracy(self, input, target):
-        ssim = SSIM()(input, target)
-        psnr = PSNR()(input, target)
+        self.ssim = SSIM()
+        self.psnr = PSNR()
+    def _compute_accuracy(self, pred, target):
+        psnr = self.psnr(pred.to(self.device), target.to(self.device)) 
+        ssim = self.ssim(pred.to(self.device), target.to(self.device))
+        
         return {'ssim': ssim, 'psnr': psnr}
 
     def _step(self, batch, batch_idx, log_metric: str):

@@ -8,7 +8,7 @@ from typing import Type, List, Union
 import torch
 import numpy as np
 
-CONFIG_FILE_PATH = r"D:\CZI_scope\code\ml_models\resnet\config.yml"
+CONFIG_FILE_PATH = 'config.yml'
 
 # path custom tag handler
 

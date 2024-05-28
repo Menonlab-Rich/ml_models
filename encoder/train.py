@@ -40,7 +40,6 @@ def main(config: Config, n_files: int = None):
             max_epochs=config.epochs,
             precision=config.precision,
             accelerator=config.accelerator,
-            progress_bar_refresh_rate=1,
         ).fit(model, data_module)
 
 
