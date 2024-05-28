@@ -136,7 +136,7 @@ class ResnetDataset(GenericDataset):
 class ResnetDataModule(LightningDataModule):
     def __init__(
             self, input_loader: InputLoader, target_loader: TargetLoader,
-            prediction_loader=None, transforms=None, batch_size=32):
+            prediction_loader=None, transforms=None, batch_size=32, n_workers=7):
         super(ResnetDataModule, self).__init__()
         self.train_inputs, self.val_inputs = input_loader.split(
             0.8)  # Split the data
@@ -145,6 +145,7 @@ class ResnetDataModule(LightningDataModule):
         self.transforms = transforms
         self.batch_size = batch_size
         self.prediction_loader = prediction_loader
+        self.n_workers = n_workers
 
     def setup(self, stage: str):
         if stage == 'fit' or stage is None:
@@ -167,23 +168,23 @@ class ResnetDataModule(LightningDataModule):
     def train_dataloader(self):
         return DataLoader(
             self.train_set, batch_size=self.batch_size, shuffle=True,
-            num_workers=7, persistent_workers=True)
+            num_workers=self.n_workers, persistent_workers=True)
 
     def val_dataloader(self):
         return DataLoader(
             self.val_set, batch_size=self.batch_size, shuffle=False,
-            num_workers=7, persistent_workers=True)
+            num_workers=self.n_workers, persistent_workers=True)
 
     def test_dataloader(self):
         return DataLoader(
             self.val_set, batch_size=self.batch_size, shuffle=False,
-            num_workers=7, persistent_workers=True)
+            num_workers=self.n_workers, persistent_workers=True)
 
     def predict_dataloader(self):
         if self.prediction_set is not None:
             return DataLoader(
                 self.prediction_set, batch_size=self.batch_size, shuffle=False,
-                num_workers=7, persistent_workers=True)
+                num_workers=self.n_workers, persistent_workers=True)
         else:
             warnings.warn('No prediction set provided. Using validation set.')
             return self.val_dataloader()

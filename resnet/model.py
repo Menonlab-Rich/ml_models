@@ -2,7 +2,7 @@ import torchvision.models as models
 from torch import nn
 import torch
 import pytorch_lightning as pl
-from torchmetrics.classification import BinaryAccuracy
+from torchmetrics.classification import BinaryAccuracy, BinaryConfusionMatrix
 
 
 class SqueezeLaer(nn.Module):
@@ -55,6 +55,7 @@ class ResNet(pl.LightningModule):
         self.save_hyperparameters(hparams)
         self.encoder = encoder.to(self.device) if encoder else None
         self.accuracy = BinaryAccuracy() # Accuracy metric
+        self.bcm = BinaryConfusionMatrix(normalize='true') # Confusion matrix metric
         backbone = models.resnet50(weights="DEFAULT")
         n_filters = backbone.fc.in_features
         if n_channels != 3:
@@ -96,10 +97,11 @@ class ResNet(pl.LightningModule):
         prefixes = [mp[0] if len(mp) == 2 else '' for mp in metric_w_prefixes]
         if 'loss' in metrics:
             for prefix in prefixes:
-                self.log(f'{prefix}_loss', loss)
+                self.log(f'{prefix}_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         if 'acc' in metrics:
             for prefix in prefixes:
-                self.log(f'{prefix}_acc', acc)           
+                self.log(f'{prefix}_acc', acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.bcm.update(y_hat, y)
         return loss
 
     def training_step(self, batch, batch_idx):
@@ -110,6 +112,11 @@ class ResNet(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
+    
+    def on_train_epoch_end(self) -> None:
+        fig, ax = self.bcm.plot(labels=['605', '625']) # TODO: Make the labels dynamic
+        self.logger.experiment["train/epoch_bcm_plot"] = fig
+        self.logger.experiment["train/epoch_bcm_results"] = self.bcm.compute() # Save the results
 
 
 class BCEResnet(ResNet):
