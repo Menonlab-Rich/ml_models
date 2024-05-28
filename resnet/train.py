@@ -6,20 +6,18 @@ from os import environ
 from pytorch_lightning import Trainer
 from encoder.model import LitAutoencoder
 
+
 def load_encoder(ckpt_path: str):
     encoder = LitAutoencoder.load_from_checkpoint(ckpt_path, strict=False)
     return encoder
+
 
 def main(config: Config, n_files: int = None):
     input_loader = InputLoader(config.data_dir)
     target_loader = TargetLoader(config.data_dir)
 
-    data_module = ResnetDataModule(
-        input_loader, target_loader, batch_size=config.batch_size,
-        transforms=config.transform)
-
     model = BCEResnet(
-        weight=None,
+        weight=config.weights['625'],
         lr=config.learning_rate,
         encoder=load_encoder(config.encoder_path),
         n_channels=config.input_channels,
@@ -33,6 +31,11 @@ def main(config: Config, n_files: int = None):
 
     debug = config.debug
     if debug['enable']:
+        data_module = ResnetDataModule(
+            input_loader, target_loader, batch_size=config.batch_size,
+            transforms=config.transform,
+            n_workers=1  # It takes time to spawn workers in debug mode so we set it to 1
+        )
         Trainer(
             fast_dev_run=debug['fast'],
             limit_train_batches=debug['train_batches'],
@@ -40,6 +43,9 @@ def main(config: Config, n_files: int = None):
         ).fit(model=model, datamodule=data_module)
 
     else:
+        data_module = ResnetDataModule(
+            input_loader, target_loader, batch_size=config.batch_size,
+            transforms=config.transform)
         Trainer(
             logger=logger,
             max_epochs=config.epochs,

@@ -8,28 +8,28 @@ import pytorch_lightning as pl
 from torch import nn
 from torch.nn import functional as F
 from torchmetrics import Metric
-from torchmetrics.regression import MeanSquaredError
 from torchmetrics.image import StructuralSimilarityIndexMeasure as SSIM, PeakSignalNoiseRatio as PSNR
 from typing import Union, List, Type, Callable
 
+class MeanSquaredError(nn.Module):
+    def __init__(self):
+        super().__init__()
 
-class WeightedMSEMetric(Metric):
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        return F.mse_loss(input, target)
+
+class WeightedMSEMetric(MeanSquaredError):
     def __init__(self, weights=None, scale=1.0, dist_sync_on_step=False):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
-        
-        self.add_state(
-            "sum_loss", default=torch.tensor(0.0).to(self.device),
-            dist_reduce_fx="sum")
-        self.add_state("total", default=torch.tensor(0).to(self.device), dist_reduce_fx="sum")
 
         if weights is not None:
-            weights = torch.tensor(weights, dtype=torch.float).to(self.device)
+            weights = torch.tensor(weights, dtype=torch.float)
             self.register_buffer('weight', weights)
         else:
             self.weight = None
-        self.register_buffer('scale', torch.tensor(scale).to(self.device))
+        self.register_buffer('scale', torch.tensor(scale))
 
-    def update(self, input: torch.Tensor, target: torch.Tensor, classes=None):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, classes=None):
         assert input.device == target.device, 'Input and target must be on the same device'
 
         if self.weight is not None:
@@ -48,11 +48,7 @@ class WeightedMSEMetric(Metric):
 
         loss = loss * self.scale
 
-        self.sum_loss += loss * input.numel()
-        self.total += input.numel()
-
-    def compute(self):
-        return self.sum_loss / self.total
+        return loss
 
 
 
@@ -62,7 +58,7 @@ class LitAutoencoder(pl.LightningModule):
             rescale_factor=1.0, size=None, **hyper_params) -> None:
         super().__init__()
 
-        self.loss_fn = MeanSquaredError() # Default loss function
+        self.loss_fn = MeanSquaredError().to(self.device) # Default loss function
         
         default_hyper_params = {
             'lr': 1e-3,
@@ -231,7 +227,7 @@ class Autoencoder(nn.Module):
 
 
 if __name__ == '__main__':
-    model = Autoencoder(1, 16)
+    model = WeightedLitAutoencoder(input_channels=1, embedding_dim=32, size=(128, 128), weights=[1.0, 1.0], class_names=['class1', 'class2'])
     print(model)
     x = torch.randn(1, 1, 128, 128)
     embedding, reconstruction = model(x)
