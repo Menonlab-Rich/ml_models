@@ -3,6 +3,7 @@ from torch import nn
 import torch
 import pytorch_lightning as pl
 from torchmetrics.classification import BinaryAccuracy, BinaryConfusionMatrix
+from neptune.types import File
 
 
 class SqueezeLaer(nn.Module):
@@ -115,8 +116,8 @@ class ResNet(pl.LightningModule):
     
     def on_train_epoch_end(self) -> None:
         fig, ax = self.bcm.plot(labels=['605', '625']) # TODO: Make the labels dynamic
-        self.logger.experiment["train/epoch_bcm_plot"] = fig
-        self.logger.experiment["train/epoch_bcm_results"] = self.bcm.compute() # Save the results
+        self.logger.experiment["train/epoch_bcm_plot"] = File.as_image(fig) # Save the plot
+        self.logger.experiment["train/epoch_bcm_results"] = File.as_pickle(self.bcm.compute()) # Save the results
 
 
 class BCEResnet(ResNet):
