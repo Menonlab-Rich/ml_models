@@ -36,9 +36,9 @@ class ResNet(pl.LightningModule):
         # Freeze the feature extractor except in the case that the first layer is changed
         # If the first layer is changed, the feature extractor will be frozen from the second layer
         starting_layer = 1 if n_channels != 3 else 0
-        for layer in self.feature_extractor[starting_layer:]:
-            for param in layer.parameters():
-                param.requires_grad = False
+        #for layer in self.feature_extractor[starting_layer:]:
+        #    for param in layer.parameters():
+        #        param.requires_grad = False
         self.classifier = nn.Linear(n_filters, n_classes)
         self.loss_fn = nn.BCEWithLogitsLoss()
         self.encoder = encoder
@@ -61,8 +61,6 @@ class ResNet(pl.LightningModule):
         if y_hat.dim() == 0:
             y_hat = y_hat.unsqueeze(0) # Add the batch dimension
         loss = self.loss_fn(y_hat, y)
-        self.accuracy.update(y_hat, y)
-        acc = self.accuracy.compute()
         metric_w_prefixes = [metric.split('_') for metric in log_metrics]
         metrics = [mp[0] if len(mp) == 1 else mp[1] for mp in metric_w_prefixes]
         prefixes = [mp[0] if len(mp) == 2 else '' for mp in metric_w_prefixes]
@@ -71,14 +69,16 @@ class ResNet(pl.LightningModule):
                 self.log(f'{prefix}_loss', loss, on_step=True,
                          on_epoch=True, prog_bar=True, logger=True)
         if 'acc' in metrics:
+            self.accuracy.update(y_hat, y)
+            self.bcm.update(y_hat, y)
             for prefix in prefixes:
-                self.log(f'{prefix}_acc', acc, on_step=True,
+                self.log(f'{prefix}_acc', self.accuracy.compute(), on_step=True,
                          on_epoch=True, prog_bar=True, logger=True)
-        self.bcm.update(y_hat, y)
+                self.bcm.update(y_hat, y)
         return loss
 
     def training_step(self, batch, batch_idx):
-        return self._step(batch, batch_idx)
+        return self._step(batch, batch_idx, log_metrics=['loss'])
 
     def validation_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, log_metrics=['val_loss', 'val_acc'])
@@ -110,7 +110,7 @@ class ResNet(pl.LightningModule):
     def on_train_epoch_end(self) -> None:
         epoch = self.current_epoch
         # TODO: Make the labels dynamic
-        fig, ax = self.bcm.plot(labels=['cat', 'dog'])
+        fig, ax = self.bcm.plot(labels=['605', '625'])
         # Save the plot
         self.logger.experiment[f"training/epoch_bcm_plot_{epoch}"] = File.as_image(fig)
         self.logger.experiment[f"training/epoch_bcm_results_{epoch}"] = File.as_pickle(
