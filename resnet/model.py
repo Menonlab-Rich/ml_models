@@ -114,6 +114,22 @@ class ResNet(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
     
+    def test_step(self, batch, batch_idx):
+        # Check the accuracy of the model
+        x, y, _ = batch
+        y_hat = self(x)
+        # Check the accuracy
+        if y_hat.dim() == 0:
+            y_hat = y_hat.unsqueeze(0) # Add the batch dimension
+        self.accuracy.update(y_hat, y)
+        self.bcm.update(y_hat, y)
+        return self.accuracy.compute()
+
+    def on_test_epoch_end(self):
+        self.log('test_acc', self.accuracy.compute(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        fig, ax = self.bcm.plot()
+        self.logger.experiment["test_bcm_plot"] = File.as_image(fig)
+    
     def on_train_epoch_end(self) -> None:
         fig, ax = self.bcm.plot(labels=['605', '625']) # TODO: Make the labels dynamic
         self.logger.experiment["train/epoch_bcm_plot"] = File.as_image(fig) # Save the plot

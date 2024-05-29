@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule
 import warnings
 from config import Config, CONFIG_FILE_PATH
-import torch
 
 config = Config(CONFIG_FILE_PATH)
 classes = list(config.weights.keys())
@@ -136,12 +135,19 @@ class ResnetDataset(GenericDataset):
 class ResnetDataModule(LightningDataModule):
     def __init__(
             self, input_loader: InputLoader, target_loader: TargetLoader,
-            prediction_loader=None, transforms=None, batch_size=32, n_workers=7):
+            prediction_loader=None, transforms=None, batch_size=32, n_workers=7,
+            no_split=False):
         super(ResnetDataModule, self).__init__()
-        self.train_inputs, self.val_inputs = input_loader.split(
-            0.8)  # Split the data
-        self.train_targets, self.val_targets = target_loader.split(
-            0.8)  # Split the data
+        if not no_split:
+            self.train_inputs, self.val_inputs = input_loader.split(
+                0.8)  # Split the data
+            self.train_targets, self.val_targets = target_loader.split(
+                0.8)  # Split the data
+        else:
+            self.train_inputs = input_loader
+            self.val_inputs = input_loader
+            self.train_targets = target_loader
+            self.val_targets = target_loader
         self.transforms = transforms
         self.batch_size = batch_size
         self.prediction_loader = prediction_loader
@@ -165,6 +171,30 @@ class ResnetDataModule(LightningDataModule):
             else:
                 self.prediction_set = None
 
+    def state_dict(self):
+        try:
+            return {
+                'train_inputs': self.train_inputs.get_ids(),
+                'val_inputs': self.val_inputs.get_ids(),
+                'train_targets': self.train_targets.get_ids(),
+                'val_targets': self.val_targets.get_ids(),
+                'batch_size': self.batch_size,
+                'n_workers': self.n_workers
+            }
+        except Exception as e:
+            warnings.warn(f'Error in saving state dict: {e}')
+
+    def load_state_dict(self, state_dict):
+        try:
+            self.train_inputs = InputLoader(state_dict['train_inputs'])
+            self.val_inputs = InputLoader(state_dict['val_inputs'])
+            self.train_targets = TargetLoader(state_dict['train_targets'])
+            self.val_targets = TargetLoader(state_dict['val_targets'])
+            self.batch_size = state_dict['batch_size']
+            self.n_workers = state_dict['n_workers']
+        except Exception as e:
+            warnings.warn(f'Error in loading state dict: {e}')
+
     def train_dataloader(self):
         return DataLoader(
             self.train_set, batch_size=self.batch_size, shuffle=True,
@@ -177,7 +207,7 @@ class ResnetDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(
-            self.val_set, batch_size=self.batch_size, shuffle=False,
+            self.test_set, batch_size=self.batch_size, shuffle=False,
             num_workers=self.n_workers, persistent_workers=True)
 
     def predict_dataloader(self):

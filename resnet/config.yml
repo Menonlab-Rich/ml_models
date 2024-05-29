@@ -1,23 +1,23 @@
 # define the root directory that all other paths are relative to
-root_dir: &root_dir .
-data_dir: ../../data/transfer/preprocess/tifs
+root_dir: &root_dir D:\CZI_scope\code\ml_models\resnet
+data_dir: D:\CZI_scope\code\preprocess\tifs
 out_dir: !path [*root_dir, 'output']
 input_channels: 8
 learning_rate: 1.e-4
 batch_size: 60
 epochs: 15
-device: cuda # Example: 'cpu' or 'cuda'
+device: cpu # Example: 'cpu' or 'cuda'data_dir: *root_dir\data
 weights:
   "605": 1.
-  "625": 1.5 # 0.5 more weight to 625
+  "625": 1.5 # 0.75 more weight to 625
 gpus: 1 # How many gpus to use
 precision: '16-mixed' # 16, 32, 64, 'full', 'double', '16-mixed', '16-bf16'
 accelerator: 'auto' # 'cpu', 'gpu', 'tpu', 'amp', 'auto'
 encoder_path: !path [*root_dir, '..', 'encoder', 'best_model.ckpt']
 
 debug:
-  enable: false
-  fast: true
+  enable: True
+  fast: True
   epochs: 5
   train_batches: 0.05
   val_batches: 0.01
