@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule
 import warnings
 from config import Config, CONFIG_FILE_PATH
+import pickle
 
 config = Config(CONFIG_FILE_PATH)
 classes = list(config.weights.keys())
@@ -37,8 +38,8 @@ class InputLoader(GenericDataLoader):
             self.files = sorted(
                 [f for f in listdir(directory) if f.endswith('.tif')])
         if n_files is not None:
-            # Sample n_files at random
-            self.files = np.random.choice(self.files, n_files, replace=False)
+            # sample the first n files
+            self.files = self.files[:n_files]
 
     def __len__(self):
         return len(self.files)
@@ -94,8 +95,8 @@ class TargetLoader(GenericDataLoader):
             self.files = sorted(
                 [f for f in listdir(directory) if f.endswith('.tif')])
         if n_files is not None:
-            # Sample n_files at random
-            self.files = np.random.choice(self.files, n_files, replace=False)
+            # Sample the first n files
+            self.files = self.files[:n_files]
 
     def __len__(self):
         return len(self.files)
@@ -121,8 +122,8 @@ class TargetLoader(GenericDataLoader):
         return classes.index(file[:3])
 
     def post_split(self, train_ids, val_ids):
-        return TargetLoader(
-            self.directory, files=train_ids), TargetLoader(
+        return self.__class__(
+            self.directory, files=train_ids), self.__class__(
             self.directory, files=val_ids)
 
 
@@ -152,6 +153,17 @@ class ResnetDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.prediction_loader = prediction_loader
         self.n_workers = n_workers
+        
+        hparams = {
+            input_loader: pickle.dumps(input_loader),
+            target_loader: pickle.dumps(target_loader),
+            prediction_loader: pickle.dumps(prediction_loader) if prediction_loader is not None else None,
+            transforms: pickle.dumps(transforms),
+            batch_size: batch_size,
+            n_workers: n_workers
+        }
+        
+        self.save_hyperparameters(hparams) # Save the hyperparameters
 
     def setup(self, stage: str):
         if stage == 'fit' or stage is None:
@@ -159,6 +171,8 @@ class ResnetDataModule(LightningDataModule):
                 self.train_inputs, self.train_targets, self.transforms)
             self.val_set = ResnetDataset(
                 self.val_inputs, self.val_targets, self.transforms)
+            
+            
 
         if stage == 'test':
             self.test_set = ResnetDataset(
@@ -183,6 +197,7 @@ class ResnetDataModule(LightningDataModule):
             }
         except Exception as e:
             warnings.warn(f'Error in saving state dict: {e}')
+
 
     def load_state_dict(self, state_dict):
         try:
