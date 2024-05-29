@@ -8,3 +8,4 @@ results/
 *.slurm
 slurm-*
 *.ckpt
+test_data/
