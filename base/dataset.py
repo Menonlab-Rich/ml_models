@@ -11,7 +11,7 @@ class GenericDataLoader():
         pass
 
     def __len__(self):
-        pass
+        return len(self.get_ids())
 
     def __getitem__(self, idx):
         pass
@@ -20,7 +20,8 @@ class GenericDataLoader():
         pass
 
     def __iter__(self):
-        pass
+        for i in range(len(self)):
+            yield self[i]
 
     def split(self, train_ratio: float, seed=16) -> Tuple[np.ndarray, np.ndarray]:
         """
