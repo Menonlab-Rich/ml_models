@@ -74,7 +74,6 @@ class ResNet(pl.LightningModule):
             for prefix in prefixes:
                 self.log(f'{prefix}_acc', self.accuracy.compute(), on_step=True,
                          on_epoch=True, prog_bar=True, logger=True)
-                self.bcm.update(y_hat, y)
         return loss
 
     def training_step(self, batch, batch_idx):
