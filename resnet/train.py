@@ -4,6 +4,7 @@ from config import Config, CONFIG_FILE_PATH
 from pytorch_lightning.loggers import NeptuneLogger
 from os import environ
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 from encoder.model import LitAutoencoder
 
 
@@ -15,6 +16,15 @@ def load_encoder(ckpt_path: str):
 def main(config: Config, n_files: int = None):
     input_loader = InputLoader(config.data_dir)
     target_loader = TargetLoader(config.data_dir)
+
+    checkpoint_cb = ModelCheckpoint(
+        monitor='val_acc',
+        dirpath='checkpoints',
+        filename='resnet-{epoch:02d}-{val_acc:.2f}',
+        save_top_k=3,
+        mode='max',
+        save_on_train_epoch_end=False,
+    )
 
     model = BCEResnet(
         weight=None,
@@ -40,6 +50,7 @@ def main(config: Config, n_files: int = None):
             fast_dev_run=debug['fast'],
             limit_train_batches=debug['train_batches'],
             limit_val_batches=debug['val_batches'],
+            callbacks=[checkpoint_cb]
         ).fit(model=model, datamodule=data_module)
 
     else:
@@ -51,7 +62,7 @@ def main(config: Config, n_files: int = None):
             max_epochs=config.epochs,
             precision=config.precision,
             accelerator=config.accelerator,
-        ).fit(model=model, datamodule=data_module)
+            callbacks=[checkpoint_cb]).fit(model=model, datamodule=data_module)
 
 
 if __name__ == '__main__':
