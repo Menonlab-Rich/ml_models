@@ -1,6 +1,7 @@
 # define the root directory that all other paths are relative to
 root_dir: &root_dir .
-data_dir: ../../data/transfer/preprocess/tifs
+data_dir: D:\CZI_scope\code\preprocess\tifs
+test_dir: D:\CZI_scope\code\preprocess\validation
 out_dir: !path [*root_dir, 'output']
 input_channels: 8
 learning_rate: 1.e-4
@@ -16,7 +17,7 @@ accelerator: 'auto' # 'cpu', 'gpu', 'tpu', 'amp', 'auto'
 encoder_path: !path [*root_dir, '..', 'encoder', 'best_model.ckpt']
 
 debug:
-  enable: false
+  enable: true
   fast: true
   epochs: 5
   train_batches: 0.05

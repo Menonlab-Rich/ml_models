@@ -5,12 +5,28 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import pytorch_lightning as pl
 from torchmetrics.classification import BinaryAccuracy, BinaryConfusionMatrix
 from neptune.types import File
-
-
+import warnings
 
 
 class ResNet(pl.LightningModule):
+    """
+    ResNet model for PyTorch Lightning.
+
+    This class defines a ResNet-based neural network model for binary classification, 
+    incorporating an optional encoder for feature extraction.
+    """
+
     def __init__(self, n_classes, n_channels=3, encoder=None, lr=1e-3, **kwargs):
+        """
+        Initialize the ResNet model.
+
+        Parameters:
+        n_classes (int): Number of output classes.
+        n_channels (int): Number of input channels (default: 3).
+        encoder (nn.Module): Optional encoder model for feature extraction.
+        lr (float): Learning rate (default: 1e-3).
+        kwargs (dict): Additional hyperparameters.
+        """
         super().__init__()
         default_hparams = {
             'n_classes': n_classes,
@@ -18,114 +34,290 @@ class ResNet(pl.LightningModule):
             'lr': lr,
         }
         hparams = {**default_hparams, **kwargs}
-        # remove any callable hyperparameters
+        # Remove any callable hyperparameters
         hparams = {k: v for k, v in hparams.items() if not callable(v)}
         hparams['encoder'] = encoder.__class__.__name__ if encoder else None
         self.save_hyperparameters(hparams)
         self.encoder = encoder.to(self.device) if encoder else None
-        self.accuracy = BinaryAccuracy()  # Accuracy metric
-        self.bcm = BinaryConfusionMatrix(
-            normalize='true')  # Confusion matrix metric
+
+        # Define metrics for validation and testing
+        self.validation_accuracy = BinaryAccuracy()
+        self.validation_bcm = BinaryConfusionMatrix(normalize='true')
+        self.test_accuracy = BinaryAccuracy()
+        self.test_bcm = BinaryConfusionMatrix(normalize='true')
+
+        # Initialize ResNet backbone
         backbone = models.resnet50(weights="DEFAULT")
         n_filters = backbone.fc.in_features
+
+        # Adjust the first layer to accept n_channels if it is not 3
         if n_channels != 3:
-            # Change the first layer to accept n_channels
             backbone.conv1 = nn.Conv2d(
                 n_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
         layers = list(backbone.children())[:-1]
-        # Squeeze the output to remove the extra dimension
         self.feature_extractor = nn.Sequential(*layers)
 
-        # Freeze the feature extractor except in the case that the first layer is changed
-        # If the first layer is changed, the feature extractor will be frozen from the second layer
-        starting_layer = 1 if n_channels != 3 else 0
-        #for layer in self.feature_extractor[starting_layer:]:
-        #    for param in layer.parameters():
-        #        param.requires_grad = False
+        # Define classifier and loss function
         self.classifier = nn.Linear(n_filters, n_classes)
         self.loss_fn = nn.BCEWithLogitsLoss()
-        self.encoder = encoder
+
         if encoder:
-            self.encoder.to(self.device)  # Move to the device
+            self.encoder.to(self.device)  # Move encoder to device
             self.encoder.eval()  # Freeze the encoder
 
     def forward(self, x):
+        """
+        Forward pass through the model.
+
+        Parameters:
+        x (torch.Tensor): Input tensor.
+
+        Returns:
+        torch.Tensor: Output predictions.
+        """
         with torch.no_grad():
             if self.encoder:
-                # Get the embeddings and ignore the decoder output
-                x, _ = self.encoder(x)
+                x, _ = self.encoder(x)  # Get embeddings from encoder
         features = self.feature_extractor(x)
         preds = self.classifier(features.squeeze())
-        return preds.squeeze()  # Remove the extra dimension
-
-    def _step(self, batch, batch_idx, log_metrics=['loss', 'acc']):
-        x, y, _ = batch
-        y_hat = self(x)
-        if y_hat.dim() == 0:
-            y_hat = y_hat.unsqueeze(0) # Add the batch dimension
-        loss = self.loss_fn(y_hat, y)
-        metric_w_prefixes = [metric.split('_') for metric in log_metrics]
-        metrics = [mp[0] if len(mp) == 1 else mp[1] for mp in metric_w_prefixes]
-        prefixes = [mp[0] if len(mp) == 2 else '' for mp in metric_w_prefixes]
-        if 'loss' in metrics:
-            for prefix in prefixes:
-                self.log(f'{prefix}_loss', loss, on_step=True,
-                         on_epoch=True, prog_bar=True, logger=True)
-        if 'acc' in metrics:
-            self.accuracy.update(y_hat, y)
-            self.bcm.update(y_hat, y)
-            for prefix in prefixes:
-                self.log(f'{prefix}_acc', self.accuracy.compute(), on_step=True,
-                         on_epoch=True, prog_bar=True, logger=True)
-        return loss
-
-    def training_step(self, batch, batch_idx):
-        return self._step(batch, batch_idx, log_metrics=['loss'])
-
-    def validation_step(self, batch, batch_idx):
-        return self._step(batch, batch_idx, log_metrics=['val_loss', 'val_acc'])
+        return preds.squeeze()
 
     def configure_optimizers(self):
+        """
+        Configure the optimizer for the model.
+
+        Returns:
+        torch.optim.Optimizer: Configured optimizer.
+        """
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
 
-    def test_step(self, batch, batch_idx):
-        # Check the accuracy of the model
+    def _shared_step(self, batch, batch_idx):
+        """
+        Common code shared across different step methods (training, validation, testing).
+
+        Parameters:
+        batch (tuple): A batch of data.
+        batch_idx (int): Batch index.
+
+        Returns:
+        tuple: Input tensor, ground truth labels, and predictions.
+        """
         x, y, _ = batch
         y_hat = self(x)
-        # Check the accuracy
         if y_hat.dim() == 0:
-            y_hat = y_hat.unsqueeze(0)  # Add the batch dimension
-        self.accuracy.update(y_hat, y)
-        self.bcm.update(y_hat, y)
-        return self.accuracy.compute()
+            y_hat = y_hat.unsqueeze(0)  # Add batch dimension if needed
+        return x, y, y_hat
+
+    def _log_metrics(self, log_location, **metrics):
+        """
+        Logs metrics to the specified location.
+
+        Parameters:
+        log_location (str): The base location for logging metrics.
+        metrics (dict): Key-value pairs of metric names and their values.
+                        If the value is a dictionary with a 'metric_value' key, the dictionary 
+                        Is treated as a special case with optional 'metric_name', 'cast', and 'pickle' keys.
+        """
+        for metric, value in metrics.items():
+            # Check if the value is a tuple with a type conversion function
+            pickle = None  # Default behavior
+            if type(value) == dict and 'metric_value' in value:
+                metric = value['metric_name'] if 'metric_name' in value else metric
+                value = value['metric_value']
+                if 'cast' in value:
+                    value = value['cast'](value)
+                if 'pickle' in value:
+                    pickle = value['pickle']
+                continue
+            try:
+                # the pickle argument is used to force pickling or not pickling
+                if pickle == True:
+                    self.logger.experiment[log_location] = File.as_pickle(value)
+                    continue
+                if pickle == False and pickle is not None:
+                    can_log = True
+                    log_type = type(value)
+                else:
+                    can_log, log_type = self._is_loggable_without_pickle(value)
+
+                _log_location = f"{log_location}/{metric}"
+
+                if can_log:
+                    val = log_type(value)
+                    self.log(_log_location, val, on_step=False,
+                             on_epoch=True, prog_bar=True, logger=True)
+                else:
+                    if self._is_figure(value):
+                        self.logger.experiment[_log_location] = File.as_image(
+                            value)
+                    else:
+                        self.logger.experiment[_log_location] = File.as_pickle(
+                            value)
+            except Exception as e:
+                warnings.warn(
+                    f"Could not log metric '{metric}' due to error: {e}")
+
+    def _is_figure(self, figure):
+        """
+        Determines if the given object is a matplotlib Figure.
+
+        Parameters:
+        figure (object): The object to check.
+
+        Returns:
+        bool: True if the object is a Figure, False otherwise.
+        """
+        return figure.__class__.__name__ == 'Figure'
+
+    def _is_loggable_without_pickle(self, obj):
+        """
+        Checks if an object can be logged without pickling.
+
+        Parameters:
+        obj (object): The object to check.
+
+        Returns:
+        tuple: (bool, type) indicating if the object can be logged without pickling and its loggable type.
+        """
+        from numpy import ndarray as np_ndarray
+        from matplotlib.figure import Figure
+        from torch import Tensor
+        
+        # Torch tensors and figures are common enough that they merit special handling
+        # All other special handling should be done through the special case dictionary
+        
+        if self._is_figure(obj):
+            return False, None # Figures are not loggable without pickling
+        
+        if isinstance(obj, Tensor):
+            return False, None
+
+        if isinstance(obj, (int, float, str, bool, type(None))):
+            return True, type(obj)
+
+        # Check if the object is a simple numpy type
+        if obj.__class__.__module__ == 'numpy' and not isinstance(
+                obj, np_ndarray):
+            return True, type(obj)
+
+        # Can the object be cast to a meaningful string?
+        try:
+            obj_str = str(obj)
+            can_str = obj_str and not obj_str.startswith(
+                "<") and not obj_str.endswith(">") and len(obj_str) < 1000
+            if can_str:
+                return True, str
+        except:
+            return False, None
+
+        return False, None
+
+    def training_step(self, batch, batch_idx):
+        """
+        Training step.
+
+        Parameters:
+        batch (tuple): A batch of data.
+        batch_idx (int): Batch index.
+
+        Returns:
+        torch.Tensor: Computed loss.
+        """
+        x, y, y_hat = self._shared_step(batch, batch_idx)
+        loss = self.loss_fn(y_hat, y)
+        self.log('train_loss', loss, on_step=True,
+                 on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        """
+        Validation step.
+
+        Parameters:
+        batch (tuple): A batch of data.
+        batch_idx (int): Batch index.
+
+        Returns:
+        torch.Tensor: Computed loss.
+        """
+        x, y, y_hat = self._shared_step(batch, batch_idx)
+        loss = self.loss_fn(y_hat, y)
+        self.validation_accuracy.update(y_hat, y)
+        self.validation_bcm.update(y_hat, y)
+        self.log('training/validation/loss', loss, on_step=True,
+                 on_epoch=True, prog_bar=True, logger=True)
+        self.log('training/validation/accuracy_step', self.validation_accuracy.compute(),
+                 on_step=True, on_epoch=False, prog_bar=True, logger=True)
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        """
+        Test step.
+
+        Parameters:
+        batch (tuple): A batch of data.
+        batch_idx (int): Batch index.
+
+        Returns:
+        torch.Tensor: Computed accuracy.
+        """
+        x, y, y_hat = self._shared_step(batch, batch_idx)
+        self.test_accuracy.update(y_hat, y)
+        self.test_bcm.update(y_hat, y)
+        accuracy_step = self.test_accuracy.compute()
+        self._log_metrics("testing", accuracy_step=accuracy_step)
+        # Log the test_accuracy so it can be monitored
+        self.log('test_accuracy', accuracy_step, on_step=False, on_epoch=True, prog_bar=False, logger=False)
+        return self.test_accuracy.compute()
 
     def on_test_epoch_end(self):
-        self.log('test_acc', self.accuracy.compute(), on_step=False,
-                 on_epoch=True, prog_bar=True, logger=True)
-        fig, ax = self.bcm.plot()
-        self.logger.experiment["testing/test_bcm_plot"] = File.as_image(fig)
-        self.logger.experiment["testing/test_bcm_results"] = File.as_pickle(
-            self.bcm.compute())
-        self.bcm.reset()
-        self.accuracy.reset()
+        """
+        Actions to perform at the end of the test epoch.
+        """
+        self.log('test_acc', self.test_accuracy.compute(),
+                 on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        fig, ax = self.test_bcm.plot()
+        self._log_metrics("testing", bcm_plot=fig,
+                          bcm_results=self.test_bcm.compute(),
+                          accuracy_epoch=self.test_accuracy.compute())
+        self.test_bcm.reset()
+        self.test_accuracy.reset()
 
-    def on_train_epoch_end(self) -> None:
+    def on_validation_epoch_end(self):
+        """
+        Actions to perform at the end of the validation epoch.
+        """
         epoch = self.current_epoch
-        # TODO: Make the labels dynamic
-        fig, ax = self.bcm.plot(labels=['605', '625'])
-        # Save the plot
-        self.logger.experiment[f"training/epoch_bcm_plot_{epoch}"] = File.as_image(fig)
-        self.logger.experiment[f"training/epoch_bcm_results_{epoch}"] = File.as_pickle(
-            self.bcm.compute())  # Save the results
-        self.bcm.reset()
-        self.accuracy.reset()
+        fig, ax = self.validation_bcm.plot(labels=['605', '625'])
+        self._log_metrics(
+            "training/validation", bcm_plot=fig,
+            bcm_results=self.validation_bcm.compute(),
+            accuracy_epoch=self.validation_accuracy.compute())
+        self.validation_bcm.reset()
+        self.validation_accuracy.reset()
+        
 
 
 class BCEResnet(ResNet):
+    """
+    Binary Classification ResNet model for PyTorch Lightning.
+
+    This class defines a ResNet-based neural network model specifically for binary classification, 
+    inheriting from the ResNet class.
+    """
+
     def __init__(self, weight=None, **kwargs):
+        """
+        Initialize the BCEResnet model.
+
+        Parameters:
+        weight (torch.Tensor): Optional weight tensor for the loss function.
+        kwargs (dict): Additional hyperparameters.
+        """
         if 'n_classes' in kwargs:
-            del kwargs['n_classes'] # Remove the n_classes argument because it is not needed
-        super().__init__(1, **kwargs)  # 1 classes for binary classification
+            # Remove the n_classes argument because it is not needed
+            del kwargs['n_classes']
+        super().__init__(1, **kwargs)
         if weight:
             weight = torch.tensor(weight).to(self.device)
             self.loss_fn = nn.BCEWithLogitsLoss(weight=weight).to(self.device)

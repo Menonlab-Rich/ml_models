@@ -23,17 +23,11 @@ def main(config: Config):
     project="richbai90/ResnetTest",  # format "workspace-name/project-name"
     tags=["training", "autoencoder", "resnet"],  # optional
 )
-
     
-    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\best_model.ckpt"
+    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=13-val_acc=0.98.ckpt"
     encoder_ckpt_path = r"D:\CZI_scope\code\ml_models\encoder\best_model.ckpt"
     model = load_models(resnet_ckpt_path, encoder_ckpt_path)
-    input_loader = InputLoader(r'D:\CZI_scope\code\preprocess\validation')
-    target_loader = TargetLoader(r'D:\CZI_scope\code\preprocess\validation')
-    data_module = ResnetDataModule(
-        input_loader, target_loader, batch_size=8,
-        transforms=config.transform, no_split=True
-    )
+    data_module = ResnetDataModule.load_from_checkpoint(r'D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=13-val_acc=0.98.ckpt')
     
     model.eval()
     model.freeze()
