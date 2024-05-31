@@ -17,7 +17,7 @@ accelerator: 'auto' # 'cpu', 'gpu', 'tpu', 'amp', 'auto'
 encoder_path: !path [*root_dir, '..', 'encoder', 'best_model.ckpt']
 
 debug:
-  enable: true
+  enable: false # prefer to pass the debug flag at the cli
   fast: true
   epochs: 5
   train_batches: 0.05
