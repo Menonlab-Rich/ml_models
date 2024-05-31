@@ -18,7 +18,7 @@ class TestAfterValidationCallback(Callback):
 
     def on_validation_epoch_end(self, trainer, pl_module):
         # Run the test loop
-        if not trainer.running_sanity_check and not self.debug:
+        if not self.debug:
             trainer.test(datamodule=self.datamodule)
 
 
@@ -89,5 +89,12 @@ def main(config: Config, n_files: int = None):
 
 
 if __name__ == '__main__':
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument("--debug", action="store_true")
+    args = parser.parse_args()
+
     config = Config(CONFIG_FILE_PATH)
+    if args.debug:
+        config.debug["enable"] = True
     main(config)

@@ -20,7 +20,7 @@ class MeanSquaredError(nn.Module):
 
 class WeightedMSEMetric(MeanSquaredError):
     def __init__(self, weights=None, scale=1.0, dist_sync_on_step=False):
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        super().__init__()
 
         if weights is not None:
             weights = torch.tensor(weights, dtype=torch.float)

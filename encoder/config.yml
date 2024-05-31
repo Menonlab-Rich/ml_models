@@ -6,7 +6,7 @@ input_channels: 1
 embedding_dim: 8
 learning_rate: 1.e-4
 batch_size: 32
-epochs: 2
+epochs: 5
 device: cuda # Example: 'cpu' or 'cuda'data_dir: *root_dir\data
 resize: [128, 128] # resize the input image
 weights:
