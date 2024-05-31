@@ -4,6 +4,7 @@ from albumentations.pytorch import ToTensorV2
 from typing import Callable, Sequence, Any, Dict
 import numpy as np
 from typing import List, Tuple
+from sklearn.model_selection import KFold
 
 
 class GenericDataLoader():
@@ -51,6 +52,22 @@ class GenericDataLoader():
         val_ids = np.setdiff1d(ids, train_ids)
 
         return self.post_split(train_ids, val_ids)
+    
+    def fold(self, k=5, shuffle=True):
+        """
+        Split dataset IDs into k folds for cross-validation.
+
+        Parameters:
+            k (int): Number of folds to create.
+
+        Returns:
+            A list of tuples containing the output of self.post_split for each fold.
+            List[Tuple[GenericDataLoader, GenericDataLoader]]
+        """
+        ids = self.get_ids()
+        kf = KFold(n_splits=k, shuffle=shuffle, random_state=16) # Set seed for reproducibility
+        return [self.post_split(train_ids, val_ids) for train_ids, val_ids in kf.split(ids)]
+        
 
     def post_split(self, train_ids, val_ids):
         """

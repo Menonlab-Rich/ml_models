@@ -7,20 +7,6 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveraging
 from encoder.model import LitAutoencoder
 
-from pytorch_lightning.callbacks import Callback
-
-
-class TestAfterValidationCallback(Callback):
-    def __init__(self, datamodule, debug=False):
-        super().__init__()
-        self.datamodule = datamodule
-        self.debug = debug
-
-    def on_validation_epoch_end(self, trainer, pl_module):
-        # Run the test loop
-        if not self.debug:
-            trainer.test(datamodule=self.datamodule)
-
 
 def load_encoder(ckpt_path: str):
     encoder = LitAutoencoder.load_from_checkpoint(ckpt_path, strict=False)
@@ -32,6 +18,10 @@ def main(config: Config, n_files: int = None):
     target_loader = TargetLoader(config.data_dir)
     test_loader = InputLoader(config.test_dir)
     test_target_loader = TargetLoader(config.test_dir)
+
+    test_data_module = ResnetDataModule(
+        input_loader=input_loader, target_loader=target_loader,
+        batch_size=config.batch_size, transforms=config.transform)
 
     swa = StochasticWeightAveraging(swa_lrs=1e-2)
 
@@ -65,27 +55,35 @@ def main(config: Config, n_files: int = None):
             transforms=config.transform,
             n_workers=1  # It takes time to spawn workers in debug mode so we set it to 1
         )
-        testing_cb = TestAfterValidationCallback(
-            datamodule=data_module, debug=True)
+
         Trainer(
             fast_dev_run=debug['fast'],
             limit_train_batches=debug['train_batches'],
             limit_val_batches=debug['val_batches'],
-            callbacks=[checkpoint_cb, testing_cb, swa]
+            callbacks=[checkpoint_cb, swa]
         ).fit(model=model, datamodule=data_module)
 
     else:
         data_module = ResnetDataModule(
             input_loader=input_loader, target_loader=target_loader,
             batch_size=config.batch_size, transforms=config.transform)
-        testing_cb = TestAfterValidationCallback(datamodule=data_module)
-        Trainer(
+        trainer = Trainer(
             logger=logger,
             max_epochs=config.epochs,
             precision=config.precision,
             accelerator=config.accelerator,
             accumulate_grad_batches=3,  # Accumulate 3 batches before doing a backward pass
-            callbacks=[checkpoint_cb, testing_cb, swa]).fit(model=model, datamodule=data_module)
+            callbacks=[checkpoint_cb, swa])
+
+        trainer.fit(model, data_module)
+        trainer.test(model, datamodule=test_data_module)
+
+
+def evaluate(config: Config):
+    input_loader = InputLoader(config.data_dir)
+    target_loader = TargetLoader(config.data_dir)
+    folds = input_loader.fold(k=config.k_folds)
+    # TODO: Implement k-fold cross-validation
 
 
 if __name__ == '__main__':

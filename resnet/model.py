@@ -182,13 +182,13 @@ class ResNet(pl.LightningModule):
         from numpy import ndarray as np_ndarray
         from matplotlib.figure import Figure
         from torch import Tensor
-        
+
         # Torch tensors and figures are common enough that they merit special handling
         # All other special handling should be done through the special case dictionary
-        
+
         if self._is_figure(obj):
-            return False, None # Figures are not loggable without pickling
-        
+            return False, None  # Figures are not loggable without pickling
+
         if isinstance(obj, Tensor):
             return False, None
 
@@ -267,7 +267,8 @@ class ResNet(pl.LightningModule):
         accuracy_step = self.test_accuracy.compute()
         self._log_metrics("testing", accuracy_step=accuracy_step)
         # Log the test_accuracy so it can be monitored
-        self.log('test_accuracy', accuracy_step, on_step=False, on_epoch=True, prog_bar=False, logger=False)
+        self.log('test_accuracy', accuracy_step, on_step=False,
+                 on_epoch=True, prog_bar=False, logger=False)
         return self.test_accuracy.compute()
 
     def on_test_epoch_end(self):
@@ -293,9 +294,12 @@ class ResNet(pl.LightningModule):
             "training/validation", bcm_plot=fig,
             bcm_results=self.validation_bcm.compute(),
             accuracy_epoch=self.validation_accuracy.compute())
+
+        # Log the validation accuracy so it can be monitored
+        self.log('accuracy_val', self.validation_accuracy.compute(),
+                 on_step=False, on_epoch=False, prog_bar=False, logger=False)
         self.validation_bcm.reset()
         self.validation_accuracy.reset()
-        
 
 
 class BCEResnet(ResNet):
