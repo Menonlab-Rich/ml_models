@@ -21,7 +21,7 @@ def main(config: Config, n_files: int = None):
     input_loader = InputLoader(config.data_dir)
     target_loader = TargetLoader(config.data_dir, config.classes)
     test_loader = InputLoader(config.test_dir)
-    test_target_loader = TargetLoader(config.test_dir)
+    test_target_loader = TargetLoader(config.test_dir, config.classes)
 
     test_data_module = ResnetDataModule(
         input_loader=input_loader, target_loader=target_loader,
