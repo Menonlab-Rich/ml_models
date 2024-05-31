@@ -310,7 +310,7 @@ class BCEResnet(ResNet):
     inheriting from the ResNet class.
     """
 
-    def __init__(self, weight=None, **kwargs):
+    def __init__(self, pos_weight=None, **kwargs):
         """
         Initialize the BCEResnet model.
 
@@ -322,8 +322,8 @@ class BCEResnet(ResNet):
             # Remove the n_classes argument because it is not needed
             del kwargs['n_classes']
         super().__init__(1, **kwargs)
-        if weight:
-            weight = torch.tensor(weight).to(self.device)
-            self.loss_fn = nn.BCEWithLogitsLoss(weight=weight).to(self.device)
+        if pos_weight:
+            pos_weight = torch.tensor(pos_weight).to(self.device)
+            self.loss_fn = nn.BCEWithLogitsLoss(weight=pos_weight).to(self.device)
         else:
             self.loss_fn = nn.BCEWithLogitsLoss().to(self.device)
