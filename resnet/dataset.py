@@ -9,9 +9,6 @@ import warnings
 from config import Config, CONFIG_FILE_PATH
 import pickle
 
-# Load configuration and class labels
-config = Config(CONFIG_FILE_PATH)
-classes = list(config.weights.keys())
 
 class InputLoader(GenericDataLoader):
     """
@@ -27,6 +24,7 @@ class InputLoader(GenericDataLoader):
         n_files (int): Number of files to sample (default: None).
         files (List[str]): List of files to use (optional).
         """
+
         self.directory = directory
         if files is not None:
             self.files = files
@@ -35,7 +33,8 @@ class InputLoader(GenericDataLoader):
             self.files = sorted(glob(directory))
             self.directory = path.dirname(directory)
         else:
-            self.files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+            self.files = sorted(
+                [f for f in listdir(directory) if f.endswith('.tif')])
         if n_files is not None:
             self.files = self.files[:n_files]
 
@@ -88,14 +87,17 @@ class InputLoader(GenericDataLoader):
         Returns:
         Tuple[InputLoader, InputLoader]: Training and validation loaders.
         """
-        return InputLoader(self.directory, files=train_ids), InputLoader(self.directory, files=val_ids)
+        return InputLoader(
+            self.directory, files=train_ids), InputLoader(
+            self.directory, files=val_ids)
+
 
 class TargetLoader(GenericDataLoader):
     """
     Loader for target files (class labels) corresponding to the input files.
     """
 
-    def __init__(self, directory, n_files=None, files=None):
+    def __init__(self, directory, class_labels, n_files=None, files=None):
         """
         Initialize the TargetLoader.
 
@@ -105,6 +107,7 @@ class TargetLoader(GenericDataLoader):
         files (List[str]): List of files to use (optional).
         """
         self.directory = directory
+        self.class_labels = class_labels
         if files is not None:
             self.files = files
         elif not path.isdir(directory):
@@ -112,9 +115,21 @@ class TargetLoader(GenericDataLoader):
             self.files = sorted(glob(directory))
             self.directory = path.dirname(directory)
         else:
-            self.files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+            self.files = sorted(
+                [f for f in listdir(directory) if f.endswith('.tif')])
         if n_files is not None:
             self.files = self.files[:n_files]
+
+        # Validate the class labels. This is so we can fail early if there are any issues.
+        self._validate()
+
+    def _validate(self):
+        """
+        Validate the class labels.
+        """
+        for file in self.files:
+            assert file[:
+                        3] in self.class_labels, f'Invalid class label: {file[:3]}'
 
     def __len__(self):
         return len(self.files)
@@ -152,7 +167,7 @@ class TargetLoader(GenericDataLoader):
         int: Class index.
         """
         file = path.basename(file)
-        return classes.index(file[:3])
+        return self.class_labels.index(file[:3])
 
     def post_split(self, train_ids, val_ids):
         """
@@ -165,7 +180,10 @@ class TargetLoader(GenericDataLoader):
         Returns:
         Tuple[TargetLoader, TargetLoader]: Training and validation loaders.
         """
-        return self.__class__(self.directory, files=train_ids), self.__class__(self.directory, files=val_ids)
+        return self.__class__(
+            self.directory, self.class_labels, files=train_ids), self.__class__(
+            self.directory, self.class_labels, files=val_ids)
+
 
 class ResnetDataset(GenericDataset):
     """
@@ -181,16 +199,20 @@ class ResnetDataset(GenericDataset):
         target_loader (TargetLoader): Loader for target files.
         transform (callable): Transformation function (default: None).
         """
-        super(ResnetDataset, self).__init__(input_loader, target_loader, transform)
+        super(ResnetDataset, self).__init__(
+            input_loader, target_loader, transform)
+
 
 class ResnetDataModule(LightningDataModule):
     """
     PyTorch Lightning Data Module for ResNet model.
     """
 
-    def __init__(self, input_loader: InputLoader = None, target_loader: TargetLoader = None, 
-                 prediction_loaders=None, test_loaders=None, transforms=None, 
-                 batch_size=32, n_workers=7, no_split=False):
+    def __init__(
+            self, input_loader: InputLoader = None,
+            target_loader: TargetLoader = None, prediction_loaders=None,
+            test_loaders=None, transforms=None, batch_size=32, n_workers=7,
+            no_split=False):
         """
         Initialize the ResnetDataModule.
 
@@ -222,7 +244,7 @@ class ResnetDataModule(LightningDataModule):
             self.val_inputs = input_loader
             self.train_targets = target_loader
             self.val_targets = target_loader
-        
+
         self.transforms = transforms
         self.batch_size = batch_size
         self.prediction_loader = prediction_loaders
@@ -231,11 +253,10 @@ class ResnetDataModule(LightningDataModule):
         hparams = {
             "input_loader": pickle.dumps(input_loader),
             "target_loader": pickle.dumps(target_loader),
-            "prediction_loader": pickle.dumps(prediction_loaders) if prediction_loaders is not None else None,
+            "prediction_loader": pickle.dumps(prediction_loaders)
+            if prediction_loaders is not None else None,
             "transforms": pickle.dumps(transforms),
-            "batch_size": batch_size,
-            "n_workers": n_workers
-        }
+            "batch_size": batch_size, "n_workers": n_workers}
         self.save_hyperparameters(hparams)
 
     def setup(self, stage: str):
@@ -246,18 +267,26 @@ class ResnetDataModule(LightningDataModule):
         stage (str): Stage of training ('fit', 'test', or 'predict').
         """
         if stage == 'fit' or stage is None:
-            self.train_set = ResnetDataset(self.train_inputs, self.train_targets, self.transforms)
-            self.val_set = ResnetDataset(self.val_inputs, self.val_targets, self.transforms)
+            self.train_set = ResnetDataset(
+                self.train_inputs, self.train_targets, self.transforms)
+            self.val_set = ResnetDataset(
+                self.val_inputs, self.val_targets, self.transforms)
 
         if stage == 'test':
             if self.test_loaders is not None:
-                self.test_set = ResnetDataset(self.test_loaders[0], self.test_loaders[1], self.transforms)
+                self.test_set = ResnetDataset(
+                    self.test_loaders[0],
+                    self.test_loaders[1],
+                    self.transforms)
             else:
                 self.test_set = None
 
         if stage == 'predict':
             if self.prediction_loaders is not None:
-                self.prediction_set = ResnetDataset(self.prediction_loader[0], self.prediction_loader[1], self.transforms)
+                self.prediction_set = ResnetDataset(
+                    self.prediction_loader[0],
+                    self.prediction_loader[1],
+                    self.transforms)
             else:
                 self.prediction_set = None
 
@@ -288,10 +317,18 @@ class ResnetDataModule(LightningDataModule):
         state_dict (dict): State dictionary.
         """
         try:
-            inputs = [path.join(config.data_dir, path.basename(file)) for file in state_dict['train_inputs']]
-            targets = [path.join(path.basename(file)) for file in state_dict['train_targets']]
-            val_inputs = [path.join(config.data_dir, path.basename(file)) for file in state_dict['val_inputs']]
-            val_targets = [path.join(path.basename(file)) for file in state_dict['val_targets']]
+            inputs = [
+                path.join(config.data_dir, path.basename(file))
+                for file in state_dict['train_inputs']]
+            targets = [
+                path.join(path.basename(file))
+                for file in state_dict['train_targets']]
+            val_inputs = [
+                path.join(config.data_dir, path.basename(file))
+                for file in state_dict['val_inputs']]
+            val_targets = [
+                path.join(path.basename(file))
+                for file in state_dict['val_targets']]
             self.train_inputs = InputLoader(files=inputs)
             self.val_inputs = InputLoader(files=val_inputs)
             self.train_targets = TargetLoader(files=targets)
@@ -308,8 +345,9 @@ class ResnetDataModule(LightningDataModule):
         Returns:
         DataLoader: DataLoader for training data.
         """
-        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True,
-                          num_workers=self.n_workers, persistent_workers=True)
+        return DataLoader(
+            self.train_set, batch_size=self.batch_size, shuffle=True,
+            num_workers=self.n_workers, persistent_workers=True)
 
     def val_dataloader(self):
         """
@@ -318,8 +356,9 @@ class ResnetDataModule(LightningDataModule):
         Returns:
         DataLoader: DataLoader for validation data.
         """
-        return DataLoader(self.val_set, batch_size=self.batch_size, shuffle=False,
-                          num_workers=self.n_workers, persistent_workers=True)
+        return DataLoader(
+            self.val_set, batch_size=self.batch_size, shuffle=False,
+            num_workers=self.n_workers, persistent_workers=True)
 
     def test_dataloader(self):
         """
@@ -329,8 +368,9 @@ class ResnetDataModule(LightningDataModule):
         DataLoader: DataLoader for test data, or None if test set is not defined.
         """
         if self.test_set is not None:
-            return DataLoader(self.test_set, batch_size=self.batch_size, shuffle=False,
-                              num_workers=self.n_workers, persistent_workers=True)
+            return DataLoader(
+                self.test_set, batch_size=self.batch_size, shuffle=False,
+                num_workers=self.n_workers, persistent_workers=True)
 
     def predict_dataloader(self):
         """
@@ -340,9 +380,9 @@ class ResnetDataModule(LightningDataModule):
         DataLoader: DataLoader for prediction data, or validation DataLoader if prediction set is not defined.
         """
         if self.prediction_set is not None:
-            return DataLoader(self.prediction_set, batch_size=self.batch_size, shuffle=False,
-                              num_workers=self.n_workers, persistent_workers=True)
+            return DataLoader(
+                self.prediction_set, batch_size=self.batch_size, shuffle=False,
+                num_workers=self.n_workers, persistent_workers=True)
         else:
             warnings.warn('No prediction set provided. Using validation set.')
             return self.val_dataloader()
-

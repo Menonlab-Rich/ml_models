@@ -31,7 +31,7 @@ def main(config: Config, n_files: int = None):
     target_loader = CatDogTargetLoader(r"D:\CZI_scope\code\ml_models\resnet\test_data\PetImages\combined\*.jpg")
 
     model = BCEResnet(
-        weight=None,
+        pos_weight=None,
         lr=config.learning_rate,
         encoder=None,
         n_channels=3,
