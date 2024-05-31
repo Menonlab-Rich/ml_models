@@ -297,7 +297,7 @@ class ResNet(pl.LightningModule):
 
         # Log the validation accuracy so it can be monitored
         self.log('accuracy_val', self.validation_accuracy.compute(),
-                 on_step=False, on_epoch=False, prog_bar=False, logger=False)
+                 on_step=False, on_epoch=True, prog_bar=False, logger=False)
         self.validation_bcm.reset()
         self.validation_accuracy.reset()
 
