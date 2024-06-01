@@ -30,8 +30,6 @@ def main(config: Config):
     )
     
     
-    model.eval()
-    model.freeze()
     trainer = Trainer(logger=logger)
     trainer.test(model, datamodule=data_module)
     
