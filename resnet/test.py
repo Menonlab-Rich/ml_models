@@ -7,6 +7,7 @@ from os import environ
 
 def load_models(resnet_ckpt_path):
     from model import ResNet
+    from encoder.model import LitAutoencoder
     model = ResNet.load_from_checkpoint(resnet_ckpt_path, encoder=None, strict=False)
     return model
 
@@ -18,19 +19,23 @@ def main(config: Config):
     logger = NeptuneLogger(
     api_key=environ.get("NEPTUNE_API_TOKEN"),  # replace with your own
     project="richbai90/ResnetTest",  # format "workspace-name/project-name"
-    tags=["testing", "resnet"],  # optional
+    tags=["training", "autoencoder", "resnet"],  # optional
 )
     
-    resnet_ckpt_path = r"checkpoints/resnet-epoch=05-accuracy_val=0.98.ckpt"
+    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=03-accuracy_val=0.97.ckpt"
     model = load_models(resnet_ckpt_path)
-    input_loader = InputLoader(config.data_dir)
-    target_loader = TargetLoader(config.data_dir, config.classes)
-    data_module = ResnetDataModule(input_loader, target_loader, n_workers=5, transforms=config.transform, test_loaders='validation')
+    data_module = ResnetDataModule(
+        input_loader=InputLoader(config.data_dir), target_loader=TargetLoader(config.data_dir, config.classes),
+        batch_size=config.batch_size, transforms=config.transform, test_loaders="validation"
+    )
+    
+    
     model.eval()
+    model.freeze()
     trainer = Trainer(logger=logger)
     trainer.test(model, datamodule=data_module)
     
 
 if __name__ == '__main__':
-    config = Config(r'config.yml')
+    config = Config(r'D:\CZI_scope\code\ml_models\resnet\config.yml')
     main(config)
