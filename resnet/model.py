@@ -189,8 +189,11 @@ class ResNet(pl.LightningModule):
         if self._is_figure(obj):
             return False, None  # Figures are not loggable without pickling
 
-        if isinstance(obj, Tensor):
+        if isinstance(obj, Tensor) and obj.dim() > 0:
             return False, None
+        
+        if isinstance(obj, Tensor): # Scalars are loggable
+            return True, obj.item() 
 
         if isinstance(obj, (int, float, str, bool, type(None))):
             return True, type(obj)
@@ -261,26 +264,38 @@ class ResNet(pl.LightningModule):
         Returns:
         torch.Tensor: Computed accuracy.
         """
+        # assert model is in eval mode (just to make sure)
+        assert not self.training
         x, y, y_hat = self._shared_step(batch, batch_idx)
+        loss = self.loss_fn(y_hat, y)
         self.test_accuracy.update(y_hat, y)
-        self.test_bcm.update(y_hat, y)
-        accuracy_step = self.test_accuracy.compute()
-        self._log_metrics("testing", accuracy_step=accuracy_step)
-        # Log the test_accuracy so it can be monitored
-        self.log('test_accuracy', accuracy_step, on_step=False,
-                 on_epoch=True, prog_bar=False, logger=False)
-        return self.test_accuracy.compute()
+        self.test_accuracy.update(y_hat, y)
+        self.log('training/testing/loss', loss, on_step=True,
+                on_epoch=True, prog_bar=True, logger=True)
+        self.log('training/testing/accuracy_step', self.validation_accuracy.compute(),
+                on_step=True, on_epoch=False, prog_bar=True, logger=True)
+        return loss
 
+        
+        
     def on_test_epoch_end(self):
         """
         Actions to perform at the end of the test epoch.
         """
+        assert not self.training
+        epoch = self.current_epoch
+        fig, ax = self.test_bcm.plot(labels=['605', '625'])
+        kwargs = {
+                f"bcm_results_{epoch}": self.validation_bcm.compute(),
+                f"bcm_plot_{epoch}": fig,
+                "accuracy_val": self.test_accuracy.compute().item()
+        }
+        self._log_metrics(
+            "testing", **kwargs)
+
+        # Log the validation accuracy so it can be monitored
         self.log('test_acc', self.test_accuracy.compute(),
-                 on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        fig, ax = self.test_bcm.plot()
-        self._log_metrics("testing", bcm_plot=fig,
-                          bcm_results=self.test_bcm.compute(),
-                          accuracy_epoch=self.test_accuracy.compute())
+                on_step=False, on_epoch=True, prog_bar=False, logger=False)
         self.test_bcm.reset()
         self.test_accuracy.reset()
 
