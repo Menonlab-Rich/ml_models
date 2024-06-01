@@ -271,7 +271,7 @@ class ResNet(pl.LightningModule):
         self.test_accuracy.update(y_hat, y)
         self.log('testing/loss', loss, on_step=True,
                 on_epoch=True, prog_bar=True, logger=True)
-        self.log('testing/accuracy_step', self.validation_accuracy.compute().item(),
+        self.log('testing/accuracy_step', self.test_accuracy.compute().item(),
                 on_step=True, on_epoch=False, prog_bar=True, logger=True)
         return loss
 
@@ -285,7 +285,7 @@ class ResNet(pl.LightningModule):
         epoch = self.current_epoch
         fig, ax = self.test_bcm.plot(labels=['605', '625'])
         kwargs = {
-                f"bcm_results_{epoch}": self.validation_bcm.compute(),
+                f"bcm_results_{epoch}": self.test_bcm.compute(),
                 f"bcm_plot_{epoch}": fig,
                 "accuracy_val": self.test_accuracy.compute().item()
         }
