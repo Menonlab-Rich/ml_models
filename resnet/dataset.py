@@ -251,6 +251,7 @@ class ResnetDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.prediction_loader = prediction_loaders
         self.n_workers = n_workers
+        self.test_loaders = test_loaders
 
         hparams = {
             "input_loader": pickle.dumps(input_loader),

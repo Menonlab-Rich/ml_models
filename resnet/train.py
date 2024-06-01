@@ -30,9 +30,9 @@ def main(config: Config, n_files: int = None):
     swa = StochasticWeightAveraging(swa_lrs=1e-2)
 
     checkpoint_cb = ModelCheckpoint(
-        monitor='test_accuracy',
+        monitor='accuracy_val',
         dirpath='checkpoints',
-        filename='resnet-{epoch:02d}-{test_accuracy:.2f}',
+        filename='resnet-{epoch:02d}-{accuracy_val:.2f}',
         save_top_k=3,
         mode='max',
         save_on_train_epoch_end=False,
@@ -40,7 +40,7 @@ def main(config: Config, n_files: int = None):
     )
 
     model = BCEResnet(
-        pos_weight=list(config.weights.values()),
+        pos_weight=config.weights[1], # the positive class
         lr=config.learning_rate,
         n_channels=1,
     )
@@ -70,7 +70,7 @@ def main(config: Config, n_files: int = None):
     else:
         data_module = ResnetDataModule(
             input_loader=input_loader, target_loader=target_loader,
-            batch_size=config.batch_size, transforms=config.transform)
+            batch_size=config.batch_size, transforms=config.transform, n_workers=4)
         trainer = Trainer(
             logger=logger,
             max_epochs=config.epochs,

@@ -5,7 +5,7 @@ test_dir: D:\CZI_scope\code\preprocess\validation
 out_dir: !path [*root_dir, "output"]
 input_channels: 1
 learning_rate: 1.e-4
-batch_size: 60
+batch_size: 32
 epochs: 15
 device: cuda # Example: 'cpu' or 'cuda'
 
@@ -17,17 +17,12 @@ weights:
   - 2.95
 
 gpus: 1 # How many gpus to use
-precision: "16-mixed" # 16, 32, 64, 'full', 'double', '16-mixed', '16-bf16'
-accelerator: "auto" # 'cpu', 'gpu', 'tpu', 'amp', 'auto'
-encoder_path: !path [*root_dir, "..", "encoder", "best_model.ckpt"]
-
-eval:
-  cross_validate: true # Whether to cross-validate
-  method: "kfold" # currently only kfolds is supported. This is a placeholder for future methods
-  folds: 5 # Number of folds for cross-validation
-
+precision: '16-mixed' # 16, 32, 64, 'full', 'double', '16-mixed', '16-bf16'
+accelerator: 'auto' # 'cpu', 'gpu', 'tpu', 'amp', 'auto'
+encoder_path: !path [*root_dir, '..', 'encoder', 'best_model.ckpt']
+k_folds: 5 # Number of folds to perform during validation step
 debug:
-  enable: true
+  enable: false # prefer to pass the debug flag at the cli
   fast: true
   epochs: 5
   train_batches: 0.05
