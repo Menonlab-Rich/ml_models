@@ -290,10 +290,13 @@ class ResNet(pl.LightningModule):
         """
         epoch = self.current_epoch
         fig, ax = self.validation_bcm.plot(labels=['605', '625'])
+        kwargs = {
+                f"bcm_results_{epoch}": self.validation_bcm.compute(),
+                f"bcm_plot_{epoch}": fig,
+                "accuracy_val": self.validation_accuracy.compute().item()
+        }
         self._log_metrics(
-            "training/validation", bcm_plot=fig,
-            bcm_results=self.validation_bcm.compute(),
-            accuracy_epoch=self.validation_accuracy.compute())
+            "training/validation", **kwargs)
 
         # Log the validation accuracy so it can be monitored
         self.log('accuracy_val', self.validation_accuracy.compute(),

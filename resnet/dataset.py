@@ -249,6 +249,7 @@ class ResnetDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.prediction_loader = prediction_loaders
         self.n_workers = n_workers
+        self.test_loaders = test_loaders
 
         hparams = {
             "input_loader": pickle.dumps(input_loader),
@@ -273,11 +274,16 @@ class ResnetDataModule(LightningDataModule):
                 self.val_inputs, self.val_targets, self.transforms)
 
         if stage == 'test':
-            if self.test_loaders is not None:
+            if self.test_loaders is not None and not isinstance(self.test_loaders, str):
                 self.test_set = ResnetDataset(
                     self.test_loaders[0],
                     self.test_loaders[1],
                     self.transforms)
+            elif isinstance(self.test_loaders, str):
+                if self.test_loaders.lower() == 'validation':
+                    self.test_set = ResnetDataset(
+                            self.val_inputs, self.val_targets
+                    )
             else:
                 self.test_set = None
 
