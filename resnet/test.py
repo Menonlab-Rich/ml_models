@@ -5,12 +5,10 @@ from pytorch_lightning.loggers import NeptuneLogger
 from os import environ
 
 
-def load_models(resnet_ckpt_path, encoder_ckpt_path):
+def load_models(resnet_ckpt_path):
     from model import ResNet
     from encoder.model import LitAutoencoder
-    encoder = LitAutoencoder.load_from_checkpoint(encoder_ckpt_path, strict=False)
-    encoder.eval() # Freeze the encoder (should be done already in the model but just in case)
-    model = ResNet.load_from_checkpoint(resnet_ckpt_path, encoder=encoder, strict=False)
+    model = ResNet.load_from_checkpoint(resnet_ckpt_path, encoder=None, strict=False)
     return model
 
 
@@ -24,10 +22,13 @@ def main(config: Config):
     tags=["training", "autoencoder", "resnet"],  # optional
 )
     
-    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=13-val_acc=0.98.ckpt"
-    encoder_ckpt_path = r"D:\CZI_scope\code\ml_models\encoder\best_model.ckpt"
-    model = load_models(resnet_ckpt_path, encoder_ckpt_path)
-    data_module = ResnetDataModule.load_from_checkpoint(r'D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=13-val_acc=0.98.ckpt')
+    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=03-accuracy_val=0.97.ckpt"
+    model = load_models(resnet_ckpt_path)
+    data_module = ResnetDataModule(
+        input_loader=InputLoader(config.data_dir), target_loader=TargetLoader(config.data_dir, config.classes),
+        batch_size=config.batch_size, transforms=config.transform, test_loaders="validation"
+    )
+    
     
     model.eval()
     model.freeze()
