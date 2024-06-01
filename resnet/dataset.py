@@ -236,6 +236,8 @@ class ResnetDataModule(LightningDataModule):
         if isinstance(target_loader, bytes):
             target_loader = pickle.loads(target_loader)
 
+        self.test_loaders = test_loaders
+
         if not no_split:
             self.train_inputs, self.val_inputs = input_loader.split(0.8)
             self.train_targets, self.val_targets = target_loader.split(0.8)
@@ -255,7 +257,9 @@ class ResnetDataModule(LightningDataModule):
             "target_loader": pickle.dumps(target_loader),
             "prediction_loader": pickle.dumps(prediction_loaders)
             if prediction_loaders is not None else None,
-            "transforms": pickle.dumps(transforms),
+            "test_loaders": pickle.dumps(test_loaders)
+            if test_loaders is not None else None, "transforms": pickle.dumps(
+                transforms),
             "batch_size": batch_size, "n_workers": n_workers}
         self.save_hyperparameters(hparams)
 
@@ -273,11 +277,16 @@ class ResnetDataModule(LightningDataModule):
                 self.val_inputs, self.val_targets, self.transforms)
 
         if stage == 'test':
-            if self.test_loaders is not None:
+            if self.test_loaders is not None and not isinstance(
+                    self.test_loaders, str):
                 self.test_set = ResnetDataset(
                     self.test_loaders[0],
                     self.test_loaders[1],
                     self.transforms)
+            elif isinstance(self.test_loaders, str):
+                if self.test_loaders.lower() == 'validation':
+                    self.test_set = ResnetDataset(
+                        self.val_inputs, self.val_targets, self.transforms)
             else:
                 self.test_set = None
 
@@ -299,10 +308,6 @@ class ResnetDataModule(LightningDataModule):
         """
         try:
             return {
-                'train_inputs': self.train_inputs.get_ids(),
-                'val_inputs': self.val_inputs.get_ids(),
-                'train_targets': self.train_targets.get_ids(),
-                'val_targets': self.val_targets.get_ids(),
                 'batch_size': self.batch_size,
                 'n_workers': self.n_workers
             }

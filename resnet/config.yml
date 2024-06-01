@@ -3,7 +3,7 @@ root_dir: &root_dir .
 data_dir: D:\CZI_scope\code\preprocess\tifs
 test_dir: D:\CZI_scope\code\preprocess\validation
 out_dir: !path [*root_dir, "output"]
-input_channels: 8
+input_channels: 1
 learning_rate: 1.e-4
 batch_size: 60
 epochs: 15

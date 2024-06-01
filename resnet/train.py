@@ -83,10 +83,19 @@ def main(config: Config, n_files: int = None):
         trainer.test(model, datamodule=test_data_module)
 
 
-def evaluate(config: Config, neptune_logger: NeptuneLogger = None):
-    from matplotlib import pyplot as plt
-    import scienceplots
-    plt.style.use('science')
+class Evaluator:
+    class LitSkLearn:
+        def __init__(self, model, **trainer_kwargs):
+            self.model = model
+            self.trainer = Trainer(**trainer_kwargs)
+
+        def fit(self, X, y):
+            self.trainer.fit(self.model, train_dataloaders=X, val_dataloaders=y)
+            return self  # For chaining
+
+        def predict(self, X):
+            self.trainer.predict(self.model, dataloaders=X,
+                                 return_predictions=True)
 
     class EvalLogger(DummyLogger):
         def __init__(self, save_metrics: List[str] = []):
@@ -107,52 +116,73 @@ def evaluate(config: Config, neptune_logger: NeptuneLogger = None):
             for metric in self.save_metrics:
                 self.accumulated_metrics[metric] = 0.0
 
-    input_loader = InputLoader(config.data_dir)
-    target_loader = TargetLoader(config.data_dir)
-    folds = input_loader.fold(k=config.k_folds)
-    logger = EvalLogger(save_metrics=["test_acc"])
-    model = BCEResnet(
-        pos_weight=None,
-        lr=config.learning_rate,
-        n_channels=1,
-    )
-    trainer = Trainer(
-        max_epochs=6,
-        precision=config.precision,
-        accelerator=config.accelerator,
-        accumulate_grad_batches=2,  # Accumulate 2 batches before doing a backward pass
-        logger=logger
-    )
-    results = []
-    for i, (train_ids, val_ids) in enumerate(folds):
-        print(f"Fold {i + 1}")
-        train_loader = InputLoader(config.data_dir, files=train_ids)
-        target_loader = TargetLoader(config.data_dir, files=train_ids)
-        data_module = ResnetDataModule(
-            input_loader=train_loader, target_loader=target_loader,
-            batch_size=config.batch_size, transforms=config.transform)
-        trainer.fit(model, data_module)
-        test_loader = InputLoader(config.data_dir, files=val_ids)
-        test_target_loader = TargetLoader(config.data_dir, files=val_ids)
-        test_data_module = ResnetDataModule(
-            input_loader=test_loader, target_loader=test_target_loader,
-            batch_size=config.batch_size, transforms=config.transform)
-        trainer.test(model, datamodule=test_data_module)
-        results.append(logger.accumulated_metrics["test_acc"] / config.epochs)
-        logger.reset()  # Reset accumulated metrics for next fold
+    def __init__(self, neptune_logger: NeptuneLogger = None):
+        self.neptune_logger = neptune_logger
 
-    # plot results
-    fig = plt.figure()
-    plt.plot(results)
-    plt.xlabel("Fold")
-    plt.ylabel("Accuracy")
-    plt.title("Cross-validation results")
+    def kfold_cross_validation(
+            self, model, input_loader, k=5, log_metrics: List[str] = []):
+        logger = self.EvalLogger(save_metrics=log_metrics)
 
-    if neptune_logger:
-        run = neptune_logger.experiment
-        run["cross-validation-results"].upload(File.as_image(fig))
-    else:
-        plt.savefig("cross-validation-results.png")
+        model = BCEResnet(
+            pos_weight=None,
+            lr=config.learning_rate,
+            n_channels=1,
+        )
+        trainer = Trainer(
+            max_epochs=6,
+            precision=config.precision,
+            accelerator=config.accelerator,
+            accumulate_grad_batches=2,  # Accumulate 2 batches before doing a backward pass
+            logger=logger
+        )
+        results = []
+        folds = input_loader.fold(k=k)
+        for i, (train_ids, val_ids) in enumerate(folds):
+            print(f"Fold {i + 1}")
+            train_loader = InputLoader(config.data_dir, files=train_ids)
+            target_loader = TargetLoader(config.data_dir, files=train_ids)
+            data_module = ResnetDataModule(
+                input_loader=train_loader, target_loader=target_loader,
+                batch_size=config.batch_size, transforms=config.transform)
+            trainer.fit(model, data_module)
+            test_loader = InputLoader(config.data_dir, files=val_ids)
+            test_target_loader = TargetLoader(config.data_dir, files=val_ids)
+            test_data_module = ResnetDataModule(
+                input_loader=test_loader, target_loader=test_target_loader,
+                batch_size=config.batch_size, transforms=config.transform)
+            trainer.test(model, datamodule=test_data_module)
+            results.append(
+                logger.accumulated_metrics["test_acc"] / config.epochs)
+            logger.reset()
+
+        return results
+
+    def bias_variance_decomposition(
+            self, model, input_loader, target_loader, n_repeats=5, k=5,
+            log_metrics: List[str] = []):
+        from mlxtend.evaluate import bias_variance_decomp
+        train_inp_loader, val_inp_loader = input_loader.split(
+            train_ratio=0.8, seed=16)
+        train_tgt_loader, val_tgt_loader = target_loader.split(
+            train_ratio=0.8, seed=16)
+        train_data_module = ResnetDataModule(
+            input_loader=train_inp_loader, target_loader=train_tgt_loader,
+            batch_size=config.batch_size, transforms=config.transform)
+        val_data_module = ResnetDataModule(
+            input_loader=val_inp_loader, target_loader=val_tgt_loader,
+            batch_size=config.batch_size, transforms=config.transform)
+
+        estimator = self.LitSkLearn(
+            model, logger=self.EvalLogger(save_metrics=log_metrics),
+            max_epochs=6, precision=config.precision,
+            accelerator=config.accelerator, accumulate_grad_batches=2)
+
+        loss, bias, var = bias_variance_decomp(
+            estimator, train_data_module.get_dataloader("train"),
+            val_data_module.get_dataloader("val"),
+            n_repeats=n_repeats, random_seed=16, fit_params={"model": model})
+        log = f"Loss: {loss}, Bias: {bias}, Variance: {var}"
+        self.neptune_logger.experiment["bias_variance_decomposition"] = log
 
 
 if __name__ == '__main__':

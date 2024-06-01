@@ -7,6 +7,7 @@ from albumentations.pytorch import ToTensorV2
 from typing import Type, List, Union
 import torch
 import numpy as np
+from sklearn.decomposition import PCA
 
 CONFIG_FILE_PATH = r'D:\CZI_scope\code\ml_models\resnet\config.yml'
 
@@ -31,10 +32,10 @@ def ToTensorFloat(x: np.ndarray) -> torch.Tensor:
 
 
 def get_train_transform():
+    pca = PCA(n_components=3)
     return {
         "input": A.Compose([
             A.ToFloat(always_apply=True),
-            A.Resize(256, 256),
             ToTensorV2()
         ]),
         "target": ToTensorFloat
