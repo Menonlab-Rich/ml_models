@@ -269,10 +269,9 @@ class ResNet(pl.LightningModule):
         x, y, y_hat = self._shared_step(batch, batch_idx)
         loss = self.loss_fn(y_hat, y)
         self.test_accuracy.update(y_hat, y)
-        self.test_accuracy.update(y_hat, y)
-        self.log('training/testing/loss', loss, on_step=True,
+        self.log('testing/loss', loss, on_step=True,
                 on_epoch=True, prog_bar=True, logger=True)
-        self.log('training/testing/accuracy_step', self.validation_accuracy.compute(),
+        self.log('testing/accuracy_step', self.validation_accuracy.compute().item(),
                 on_step=True, on_epoch=False, prog_bar=True, logger=True)
         return loss
 
