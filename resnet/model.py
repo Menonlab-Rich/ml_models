@@ -264,6 +264,8 @@ class ResNet(pl.LightningModule):
         Returns:
         torch.Tensor: Computed accuracy.
         """
+        # assert model is in eval mode (just to make sure)
+        assert not self.training
         x, y, y_hat = self._shared_step(batch, batch_idx)
         loss = self.loss_fn(y_hat, y)
         self.test_accuracy.update(y_hat, y)
@@ -280,6 +282,7 @@ class ResNet(pl.LightningModule):
         """
         Actions to perform at the end of the test epoch.
         """
+        assert not self.training
         epoch = self.current_epoch
         fig, ax = self.test_bcm.plot(labels=['605', '625'])
         kwargs = {
