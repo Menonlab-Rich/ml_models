@@ -1,6 +1,6 @@
 from pytorch_lightning import Trainer
 from dataset import ResnetDataModule, InputLoader, TargetLoader
-from config import Config
+from config import Config, CONFIG_FILE_PATH
 from pytorch_lightning.loggers import NeptuneLogger
 from os import environ
 
@@ -22,7 +22,7 @@ def main(config: Config):
     tags=["training", "autoencoder", "resnet"],  # optional
 )
     
-    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=03-accuracy_val=0.97.ckpt"
+    resnet_ckpt_path = r"checkpoints/resnet-epoch=05-accuracy_val=0.98.ckpt"
     model = load_models(resnet_ckpt_path)
     data_module = ResnetDataModule(
         input_loader=InputLoader(config.data_dir), target_loader=TargetLoader(config.data_dir, config.classes),
@@ -37,5 +37,5 @@ def main(config: Config):
     
 
 if __name__ == '__main__':
-    config = Config(r'D:\CZI_scope\code\ml_models\resnet\config.yml')
+    config = Config(CONFIG_FILE_PATH)
     main(config)
