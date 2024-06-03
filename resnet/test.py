@@ -1,6 +1,6 @@
 from pytorch_lightning import Trainer
 from dataset import ResnetDataModule, InputLoader, TargetLoader
-from config import Config
+from config import Config, CONFIG_FILE_PATH
 from pytorch_lightning.loggers import NeptuneLogger
 from os import environ
 
@@ -35,5 +35,5 @@ def main(config: Config):
     
 
 if __name__ == '__main__':
-    config = Config(r'D:\CZI_scope\code\ml_models\resnet\config.yml')
+    config = Config(CONFIG_FILE_PATH)
     main(config)
