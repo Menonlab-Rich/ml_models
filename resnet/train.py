@@ -41,7 +41,8 @@ def manual_train(config: Config):
         model.train()
         for i, (img, target, _) in enumerate(data_module.train_dataloader()):
             output = model(img)
-            loss = model.loss(output, target)
+            target = target.unsqueeze(0) # add the batch dimension
+            loss = model.loss_fn(output, target)
             model.backward(loss)
             model.step()
             model_loss += loss
@@ -50,8 +51,9 @@ def manual_train(config: Config):
         
         model.eval()
         for i, (img, target, _) in enumerate(data_module.val_dataloader()):
+            target = target.unsqueeze(0) # add the batch dimension
             output = model(img)
-            loss = model.loss(output, target)
+            loss = model.loss_fn(output, target)
             model.backward(loss)
             model.step()
             validation_loss += loss
