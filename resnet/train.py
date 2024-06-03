@@ -16,6 +16,49 @@ def load_encoder(ckpt_path: str):
     encoder = LitAutoencoder.load_from_checkpoint(ckpt_path, strict=False)
     return encoder
 
+def manual_train(config: Config):
+    model = BCEResnet(
+        lr=config.learning_rate,
+        n_channels=1,
+    )
+    
+    input_loader = InputLoader(config.data_dir)
+    target_loader = TargetLoader(config.data_dir, config.classes)
+    data_module = ResnetDataModule(
+        input_loader=input_loader, target_loader=target_loader,
+        batch_size=1, transforms=config.transform
+    )
+    data_module.setup('fit')
+    logger = NeptuneLogger(
+        api_key=environ.get("NEPTUNE_API_TOKEN"),  # replace with your own
+        project="richbai90/Resnet",  # format "workspace-name/project-name"
+        tags=["training", "autoencoder", "resnet"],  # optional
+    )
+    
+    for epoch in range(config.epochs):
+        model_loss = 0
+        validation_loss = 0
+        model.train()
+        for i, (img, target, _) in enumerate(data_module.train_dataloader()):
+            output = model(img)
+            loss = model.loss(output, target)
+            model.backward(loss)
+            model.step()
+            model_loss += loss
+            logger.log_metrics({"train_loss": loss}, step=i)
+            
+        
+        model.eval()
+        for i, (img, target, _) in enumerate(data_module.val_dataloader()):
+            output = model(img)
+            loss = model.loss(output, target)
+            model.backward(loss)
+            model.step()
+            validation_loss += loss
+            logger.log_metrics({"val_loss": loss}, step=i)
+        
+        logger.log_metrics({"epoch": epoch, "model_loss": model_loss / len(train_loader), "validation_loss": validation_loss / len(val_loader)}, step=epoch)
+            
 
 def main(config: Config, n_files: int = None):
     input_loader = InputLoader(config.data_dir)
@@ -83,106 +126,119 @@ def main(config: Config, n_files: int = None):
         trainer.test(model, datamodule=test_data_module)
 
 
-class Evaluator:
-    class LitSkLearn:
-        def __init__(self, model, **trainer_kwargs):
-            self.model = model
-            self.trainer = Trainer(**trainer_kwargs)
 
-        def fit(self, X, y):
-            self.trainer.fit(self.model, train_dataloaders=X, val_dataloaders=y)
-            return self  # For chaining
+if __name__ == '__main__':
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--manual", action="store_true")
+    args = parser.parse_args()
 
-        def predict(self, X):
-            self.trainer.predict(self.model, dataloaders=X,
-                                 return_predictions=True)
+    config = Config(CONFIG_FILE_PATH)
+    if args.debug:
+        config.debug["enable"] = True
+    if args.manual:
+        manual_train(config)
+    else:
+        main(config)
 
-    class EvalLogger(DummyLogger):
-        def __init__(self, save_metrics: List[str] = []):
-            super().__init__()
-            self.save_metrics = save_metrics
-            self.accumulated_metrics = {}
-            for metric in save_metrics:
-                self.accumulated_metrics[metric] = 0.0
 
-        @override
-        def log_metrics(self, metrics, step):
-            for metric_name, metric_value in metrics.items():
-                if metric_name in self.save_metrics:
-                    self.accumulated_metrics[metric_name] += metric_value
-            print(f"Step {step}: {metrics}")
 
-        def reset(self):
-            for metric in self.save_metrics:
-                self.accumulated_metrics[metric] = 0.0
 
-    def __init__(self, neptune_logger: NeptuneLogger = None):
-        self.neptune_logger = neptune_logger
 
-    def kfold_cross_validation(
-            self, model, input_loader, k=5, log_metrics: List[str] = []):
-        logger = self.EvalLogger(save_metrics=log_metrics)
 
-        model = BCEResnet(
-            pos_weight=None,
-            lr=config.learning_rate,
-            n_channels=1,
-        )
-        trainer = Trainer(
-            max_epochs=6,
-            precision=config.precision,
-            accelerator=config.accelerator,
-            accumulate_grad_batches=2,  # Accumulate 2 batches before doing a backward pass
-            logger=logger
-        )
-        results = []
-        folds = input_loader.fold(k=k)
-        for i, (train_ids, val_ids) in enumerate(folds):
-            print(f"Fold {i + 1}")
-            train_loader = InputLoader(config.data_dir, files=train_ids)
-            target_loader = TargetLoader(config.data_dir, files=train_ids)
-            data_module = ResnetDataModule(
-                input_loader=train_loader, target_loader=target_loader,
-                batch_size=config.batch_size, transforms=config.transform)
-            trainer.fit(model, data_module)
-            test_loader = InputLoader(config.data_dir, files=val_ids)
-            test_target_loader = TargetLoader(config.data_dir, files=val_ids)
-            test_data_module = ResnetDataModule(
-                input_loader=test_loader, target_loader=test_target_loader,
-                batch_size=config.batch_size, transforms=config.transform)
-            trainer.test(model, datamodule=test_data_module)
-            results.append(
-                logger.accumulated_metrics["test_acc"] / config.epochs)
-            logger.reset()
 
-        return results
 
-    def bias_variance_decomposition(
-            self, model, input_loader, target_loader, n_repeats=5, k=5,
-            log_metrics: List[str] = []):
-        from mlxtend.evaluate import bias_variance_decomp
-        train_inp_loader, val_inp_loader = input_loader.split(
-            train_ratio=0.8, seed=16)
-        train_tgt_loader, val_tgt_loader = target_loader.split(
-            train_ratio=0.8, seed=16)
-        train_data_module = ResnetDataModule(
-            input_loader=train_inp_loader, target_loader=train_tgt_loader,
-            batch_size=config.batch_size, transforms=config.transform)
-        val_data_module = ResnetDataModule(
-            input_loader=val_inp_loader, target_loader=val_tgt_loader,
-            batch_size=config.batch_size, transforms=config.transform)
 
-        estimator = self.LitSkLearn(
-            model, logger=self.EvalLogger(save_metrics=log_metrics),
-            max_epochs=6, precision=config.precision,
-            accelerator=config.accelerator, accumulate_grad_batches=2)
 
-        loss, bias, var = bias_variance_decomp(
-            estimator, train_data_module.get_dataloader("train"),
-            val_data_module.get_dataloader("val"),
-            n_repeats=n_repeats, random_seed=16, fit_params={"model": model})
-        log = f"Loss: {loss}, Bias: {bias}, Variance: {var}"
-        self.neptune_logger.experiment["bias_variance_decomposition"] = log
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 if __name__ == '__main__':
