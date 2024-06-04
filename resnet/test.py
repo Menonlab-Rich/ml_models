@@ -7,9 +7,9 @@ from os import environ
 
 def load_models(resnet_ckpt_path):
     from model import ResNet
-    from encoder.model import LitAutoencoder
     model = ResNet.load_from_checkpoint(resnet_ckpt_path, encoder=None, strict=False)
-    return model
+    data_module = ResnetDataModule.load_from_checkpoint(resnet_ckpt_path)
+    return model, data_module
 
 
 
@@ -22,15 +22,18 @@ def main(config: Config):
     tags=["training", "autoencoder", "resnet"],  # optional
 )
     
-    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=05-accuracy_val=0.98.ckpt"
-    model = load_models(resnet_ckpt_path)
-    data_module = ResnetDataModule(
-        input_loader=InputLoader(config.data_dir), target_loader=TargetLoader(config.data_dir, config.classes),
-        batch_size=config.batch_size, transforms=config.transform, test_loaders="validation"
-    )
+    resnet_ckpt_path = r"checkpoints/resnet-epoch=04-val_accuracy=0.98.ckpt"
+    model, data_module = load_models(resnet_ckpt_path)
     
+    trainer_args = {
+        "logger": logger,
+        "max_epochs": config.epochs,
+        "precision": config.precision,
+        "accelerator": config.accelerator,
+        "accumulate_grad_batches": 10,
+    }
     
-    trainer = Trainer(logger=logger)
+    trainer = Trainer(**trainer_args)
     trainer.test(model, datamodule=data_module)
     
 
