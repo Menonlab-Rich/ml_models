@@ -1,12 +1,12 @@
 # define the root directory that all other paths are relative to
 root_dir: &root_dir .
-data_dir: D:\CZI_scope\code\preprocess\tifs
-test_dir: D:\CZI_scope\code\preprocess\validation
+data_dir: ../../data/transfer/preprocess/tifs
+test_dir: ../../data/transfer/preprocess/validation
 out_dir: !path [*root_dir, "output"]
 input_channels: 1
 learning_rate: 1.e-4
-batch_size: 32
-epochs: 15
+batch_size: 16
+epochs: 5
 device: cuda # Example: 'cpu' or 'cuda'
 
 classes: 

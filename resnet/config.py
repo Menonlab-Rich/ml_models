@@ -46,7 +46,6 @@ def get_val_transform():
     return {
         "input": A.Compose([
             A.ToFloat(always_apply=True),
-            A.Resize(256, 256),
             ToTensorV2()
         ]),
         "target": ToTensorFloat

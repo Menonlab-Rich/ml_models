@@ -85,7 +85,6 @@ def main(config: Config, n_files: int = None):
     )
 
     model = BCEResnet(
-        pos_weight=config.weights[1], # the positive class
         lr=config.learning_rate,
         n_channels=1,
     )
