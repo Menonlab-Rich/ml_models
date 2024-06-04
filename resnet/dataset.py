@@ -247,10 +247,14 @@ class ResnetDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.n_workers = n_workers
         self.prediction_loader = prediction_loaders
-
+        if input_loader is None or target_loader is None:
+            # If input_loader or target_loader is not provided, we are probably loading from a state dict
+            return
         if not no_split:
-            self.train_inputs, self.val_inputs = self.input_loader.split(0.8)
-            self.train_targets, self.val_targets = self.target_loader.split(0.8)
+            self.train_inputs, self.val_inputs = self._split_data(
+                self.input_loader, 0.8)
+            self.train_targets, self.val_targets = self._split_data(
+                self.target_loader, 0.8)
         else:
             self.train_inputs = self.val_inputs = self.input_loader
             self.train_targets = self.val_targets = self.target_loader
@@ -258,6 +262,19 @@ class ResnetDataModule(LightningDataModule):
         self.save_hyperparameters({
             "batch_size": batch_size, "n_workers": n_workers,
         })
+    
+    def _split_data(self, loader:GenericDataLoader, split_ratio:float):
+        """
+        Split the data into training and validation sets.
+
+        Parameters:
+        data (list): List of data.
+        split_ratio (float): Ratio to split the data.
+
+        Returns:
+        Tuple[list, list]: Training and validation sets.
+        """
+        return loader.split(split_ratio)
 
     def _load_if_bytes(self, obj):
         if isinstance(obj, bytes) and len(obj) > 0:
@@ -289,11 +306,32 @@ class ResnetDataModule(LightningDataModule):
     def _get_test_set(self):
         if isinstance(self.test_loaders, str):
             if self.test_loaders.lower() == 'validation':
+                if getattr(self, 'val_inputs', None) is None:
+                    warnings.warn('Validation set not found. Trying to load from input_loader and target_loader.')
+                    try:
+                        self.val_inputs = self.val_set.input_loader
+                        self.val_targets = self.val_set.target_loader
+                    except AttributeError:
+                        raise ValueError('Validation set not found.')
                 return ResnetDataset(
                     self.val_inputs, self.val_targets, self.transforms)
         elif self.test_loaders:
             return ResnetDataset(*self.test_loaders, self.transforms)
         return None
+    
+    def __setattr__(self, name: str, value: any) -> None:
+        """
+        Set an attribute of the data module.
+
+        Parameters:
+        name (str): Name of the attribute.
+        value (Any): Value to set.
+        """
+        if name in ('input_loader', 'target_loader', 'prediction_loader', 'test_loaders'):
+            if getattr(self, name, None) is not None:
+                warnings.warn(f'Refusing to set {name} as it is already set.')
+                return
+        super().__setattr__(name, value)
 
     def state_dict(self):
         """
@@ -331,7 +369,15 @@ class ResnetDataModule(LightningDataModule):
                 raise ValueError('Input or target loader not found.')
         except KeyError as e:
             warnings.warn(f'Error in loading state dict: {e}')
-
+        self.save_hyperparameters({
+            "batch_size": self.batch_size, "n_workers": self.n_workers,
+        })
+        
+        # Split the data
+        self.train_inputs, self.val_inputs = self._split_data(
+            self.input_loader, 0.8)
+        self.train_targets, self.val_targets = self._split_data(
+            self.target_loader, 0.8)
     def train_dataloader(self):
         """
         Get the DataLoader for training data.
