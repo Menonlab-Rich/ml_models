@@ -39,7 +39,7 @@ class ResNet(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y, _ = batch
-        y_hat = self(x)
+        y_hat = self(x).view(-1) # Flatten
         loss = self.loss_fn(y_hat, y)
         self.validation_accuracy.update(y_hat, y)
         self.validation_bcm.update(y_hat, y)
