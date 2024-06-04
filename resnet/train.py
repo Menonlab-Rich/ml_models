@@ -70,9 +70,8 @@ def main(config: Config, debug: bool = False, manual: bool = False):
     swa = StochasticWeightAveraging(swa_lrs=1e-2)
 
     model = BCEResnet(
-        pos_weight=config.weights[1],
         lr=config.learning_rate,
-        n_channels=1
+        n_channels=config.input_channels,
     )
 
     trainer_args = {
@@ -80,16 +79,16 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         "max_epochs": config.epochs,
         "precision": config.precision,
         "accelerator": config.accelerator,
-        "accumulate_grad_batches": 3,
+        "accumulate_grad_batches": 10,
         "callbacks": [checkpoint_cb, swa]
     }
 
     if debug:
-        trainer_args.update({
+        trainer_args = {
             "fast_dev_run": True,
-            "limit_train_batches": 1,
-            "limit_val_batches": 1
-        })
+            "limit_train_batches": .1,
+            "limit_val_batches": .01,
+        }
 
     trainer = Trainer(**trainer_args)
 
@@ -101,9 +100,9 @@ def main(config: Config, debug: bool = False, manual: bool = False):
             for i, (img, target, _) in enumerate(data_module.train_dataloader()):
                 output = model(img)
                 loss = model.loss_fn(output, target)
-                #model.backward(loss)
-                #model.optimizer_step(
-                #    epoch=epoch, batch_idx=i, optimizer=optimizer)
+                model.backward(loss)
+                model.optimizer_step(
+                   epoch=epoch, batch_idx=i, optimizer=optimizer)
                 logger.log_metrics({"train_loss": loss}, step=i)
                 manual_validation(model=model, input=img, target=target, _loss=loss, img_name=_[0][0])
             model.eval()

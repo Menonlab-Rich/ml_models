@@ -32,7 +32,7 @@ class ResNet(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y, _ = batch
-        y_hat = self(x)
+        y_hat = self(x).view(-1) # Flatten
         loss = self.loss_fn(y_hat, y)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
