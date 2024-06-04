@@ -22,7 +22,7 @@ def main(config: Config):
     tags=["training", "autoencoder", "resnet"],  # optional
 )
     
-    resnet_ckpt_path = r"checkpoints/resnet-epoch=05-accuracy_val=0.98.ckpt"
+    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=05-accuracy_val=0.98.ckpt"
     model = load_models(resnet_ckpt_path)
     data_module = ResnetDataModule(
         input_loader=InputLoader(config.data_dir), target_loader=TargetLoader(config.data_dir, config.classes),
