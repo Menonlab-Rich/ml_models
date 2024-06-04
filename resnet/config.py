@@ -9,7 +9,7 @@ import torch
 import numpy as np
 from sklearn.decomposition import PCA
 
-CONFIG_FILE_PATH = r'config.yml'
+CONFIG_FILE_PATH = r'D:\CZI_scope\code\ml_models\resnet\config.yml' 
 
 # path custom tag handler
 
@@ -46,7 +46,6 @@ def get_val_transform():
     return {
         "input": A.Compose([
             A.ToFloat(always_apply=True),
-            A.Resize(256, 256),
             ToTensorV2()
         ]),
         "target": ToTensorFloat

@@ -1,7 +1,7 @@
 # define the root directory that all other paths are relative to
 root_dir: &root_dir .
 data_dir: D:\CZI_scope\code\preprocess\tifs
-test_dir: D:\CZI_scope\code\preprocess\validation
+test_dir: D:\CZI_scope\code\preprocess\validation\sampled
 out_dir: !path [*root_dir, "output"]
 input_channels: 1
 learning_rate: 1.e-4
