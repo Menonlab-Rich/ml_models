@@ -7,6 +7,7 @@ from typing import List, Tuple
 from sklearn.model_selection import KFold
 
 
+
 class GenericDataLoader():
     def __init__(self, *args, **kwargs):
         pass
@@ -78,6 +79,23 @@ class GenericDataLoader():
             val_ids (np.ndarray): Array of validation IDs.
         """
         return train_ids, val_ids
+    
+class MockDataLoader(GenericDataLoader):
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+    def get_ids(self):
+        return np.arange(len(self.data))
+    
+    def post_split(self, train_ids, val_ids):
+        return MockDataLoader(self.data[train_ids]), MockDataLoader(self.data[val_ids])
 
 
 class Transformer:
