@@ -8,15 +8,14 @@ import pandas as pd
 from torch.nn import BCEWithLogitsLoss
 from os import environ
 
-
 def load_models(resnet_ckpt_path: str, config: Config):
-    from model import ResNet
-    model = ResNet.load_from_checkpoint(
-        resnet_ckpt_path, encoder=None, strict=False)
-    test_loader = InputLoader(config.test_dir)
-    target_loader = TargetLoader(config.test_dir, config.classes)
+    from model import BCEResnet
+    model = BCEResnet.load_from_checkpoint(
+        resnet_ckpt_path, strict=False)
+    input_loader = InputLoader(config.data_dir)
+    target_loader = TargetLoader(config.data_dir, config.classes)
     data_module = ResnetDataModule.load_from_checkpoint(
-        resnet_ckpt_path, test_loaders=(test_loader, target_loader))
+        resnet_ckpt_path, test_loaders=(input_loader, target_loader))
     return model, data_module
 
 
