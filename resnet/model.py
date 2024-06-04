@@ -4,6 +4,7 @@ import torch
 import pytorch_lightning as pl
 from torchmetrics.classification import BinaryAccuracy, BinaryConfusionMatrix
 from pytorch_lightning.loggers import NeptuneLogger
+from neptune.types import File
 
 class ResNet(pl.LightningModule):
     def __init__(self, n_classes, n_channels=3, lr=1e-3):
