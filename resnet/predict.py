@@ -1,6 +1,6 @@
 from pytorch_lightning import Trainer
 from dataset import ResnetDataModule, InputLoader, TargetLoader
-from config import Config
+from config import Config, CONFIG_FILE_PATH
 from pytorch_lightning.loggers import NeptuneLogger
 from tqdm import tqdm
 from torch import sigmoid, tensor
@@ -21,7 +21,7 @@ def load_models(resnet_ckpt_path: str, config: Config):
 
 def main(config: Config):
     
-    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=04-val_accuracy=0.98.ckpt"
+    resnet_ckpt_path = r"checkpoints/resnet-epoch=04-val_accuracy=0.98.ckpt"
     model, data_module = load_models(resnet_ckpt_path, config)
     trainer_args = {
         "max_epochs": config.epochs,
@@ -37,5 +37,5 @@ def main(config: Config):
     
 
 if __name__ == '__main__':
-    config = Config(r'D:\CZI_scope\code\ml_models\resnet\config.yml')
+    config = Config(CONFIG_FILE_PATH)
     main(config)
