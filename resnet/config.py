@@ -22,20 +22,6 @@ def path(loader, node):
 # register the tag handlerpathjoin
 yaml.add_constructor('!path', path)
 
-class SparsifyTensor(A.ImageOnlyTransform):
-    def __init__(self, always_apply=False, p=0.5):
-        super(SparsifyTensor, self).__init__(always_apply, p)
-        
-    def apply(self, img, **params):
-        # Apply your custom transformation logic here
-        # For example, let's add a simple operation like inverting colors
-        assert isinstance(img, torch.Tensor)
-        return img.to_sparse()
-    
-    def get_transform_init_args_names(self):
-        # Return a list of arguments names for serialization
-        return []
-
 def ToTensorFloat(x: np.ndarray) -> torch.Tensor:
     '''
     Convert a number to a tensor of type float
@@ -49,8 +35,8 @@ def get_train_transform():
     return {
         "input": A.Compose([
             A.ToFloat(always_apply=True),
+            A.LongestMaxSize(max_size=512),
             ToTensorV2(),
-            SparsifyTensor(),
             
         ]),
         "target": ToTensorFloat
@@ -61,8 +47,8 @@ def get_val_transform():
     return {
         "input": A.Compose([
             A.ToFloat(always_apply=True),
+            A.LongestMaxSize(max_size=512),
             ToTensorV2(),
-            SparsifyTensor(),
         ]),
         "target": ToTensorFloat
     }
