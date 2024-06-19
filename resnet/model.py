@@ -7,10 +7,10 @@ from pytorch_lightning.loggers import NeptuneLogger
 from neptune.types import File
 
 class ResNet(pl.LightningModule):
-    def __init__(self, n_classes, n_channels=3, lr=1e-3):
+    def __init__(self, n_classes, n_channels=3, lr=1e-3, threshold=0.5):
         super().__init__()
         self.save_hyperparameters()
-
+        self.threshold = threshold
         self.validation_accuracy = BinaryAccuracy()
         self.validation_bcm = BinaryConfusionMatrix(normalize='true')
         self.test_accuracy = BinaryAccuracy()
@@ -55,6 +55,12 @@ class ResNet(pl.LightningModule):
         self.log('test_loss', loss, on_epoch=True, prog_bar=True)
         self.log('test_accuracy', self.test_accuracy.compute(), on_epoch=True, prog_bar=True)
         return loss
+    
+    def predict_step(self, batch, batch_idx, dataloader_idx=None):
+        x, _ = batch
+        y_hat = self(x)
+        pred = torch.sigmoid(y_hat)
+        return pred > self.threshold
 
     def on_validation_epoch_end(self):
         fig, ax = self.validation_bcm.plot(labels=['Class 0', 'Class 1'])

@@ -1,13 +1,15 @@
 from os import listdir, path
 from PIL import Image
 from glob import glob
-from base.dataset import GenericDataset, GenericDataLoader
+from base.dataset import GenericDataset, GenericDataLoader, GenericPredictionDataset
 import numpy as np
 from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule
 import warnings
 from config import Config, CONFIG_FILE_PATH
 import pickle
+from base.dataset import MockDataLoader
+
 
 
 class InputLoader(GenericDataLoader):
@@ -184,6 +186,18 @@ class TargetLoader(GenericDataLoader):
             self.directory, self.class_labels, files=train_ids), self.__class__(
             self.directory, self.class_labels, files=val_ids)
 
+class PredictionDataset(GenericPredictionDataset):
+    def __init__(self, input_loader, transform=None):
+        super(PredictionDataset, self).__init__(input_loader, transform)
+    
+    def unpack(self, inputs):
+        inputs, filenames = inputs
+        return inputs, filenames
+    
+    def __len__(self):
+        return len(self.input_loader)
+    
+    
 
 class ResnetDataset(GenericDataset):
     """
@@ -223,7 +237,7 @@ class ResnetDataModule(LightningDataModule):
 
     def __init__(
             self, input_loader: InputLoader = None,
-            target_loader: TargetLoader = None, prediction_loaders=None,
+            target_loader: TargetLoader = None, prediction_loader=None,
             test_loaders=None, transforms=None, batch_size=32, n_workers=7,
             no_split=False):
         """
@@ -246,7 +260,7 @@ class ResnetDataModule(LightningDataModule):
         self.transforms = transforms
         self.batch_size = batch_size
         self.n_workers = n_workers
-        self.prediction_loader = prediction_loaders
+        self.prediction_loader = prediction_loader
         if input_loader is None or target_loader is None:
             # If input_loader or target_loader is not provided, we are probably loading from a state dict
             return
@@ -300,14 +314,13 @@ class ResnetDataModule(LightningDataModule):
             self.test_set = self._get_test_set()
 
         if stage == 'predict':
-            self.prediction_set = ResnetDataset(
-                *self.prediction_loader, self.transforms) if self.prediction_loader else None
-
+            self.prediction_set = PredictionDataset(
+                self.prediction_loader, self.transforms)
     def _get_test_set(self):
         if isinstance(self.test_loaders, str):
             if self.test_loaders.lower() == 'validation':
                 if getattr(self, 'val_inputs', None) is None:
-                    warnings.warn('Validation set not found. Trying to load from input_loader and target_loader.')
+                    warnings.warn('Validation set not found. Trying to load from input_loader state dict.')
                     try:
                         self.val_inputs = self.val_set.input_loader
                         self.val_targets = self.val_set.target_loader
@@ -365,15 +378,13 @@ class ResnetDataModule(LightningDataModule):
             self.prediction_loader = self._load_if_bytes(state_dict['prediction_loader'])
             self.test_loaders = self._load_if_bytes(state_dict['test_loaders'])
             self.transforms = self._load_if_bytes(state_dict['transforms'])
-            if not self.input_loader or not self.target_loader:
+            if (not self.input_loader or not self.target_loader) and (not self.prediction_loader and not self.test_loaders):
                 raise ValueError('Input or target loader not found.')
         except KeyError as e:
             warnings.warn(f'Error in loading state dict: {e}')
         self.save_hyperparameters({
             "batch_size": self.batch_size, "n_workers": self.n_workers,
         })
-        
-        # Split the data
         self.train_inputs, self.val_inputs = self._split_data(
             self.input_loader, 0.8)
         self.train_targets, self.val_targets = self._split_data(

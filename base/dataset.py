@@ -95,6 +95,8 @@ class MockDataLoader(GenericDataLoader):
         return np.arange(len(self.data))
     
     def post_split(self, train_ids, val_ids):
+        if len(train_ids) == 0 or len(val_ids) == 0:
+            return MockDataLoader([]), MockDataLoader([])
         return MockDataLoader(self.data[train_ids]), MockDataLoader(self.data[val_ids])
 
 
@@ -162,3 +164,35 @@ class GenericDataset(data.Dataset):
         inp, target = self.transform(inp, target)
 
         return inp, target, rest
+
+class GenericPredictionDataset(data.Dataset):
+    '''
+    A generic dataset class that can be used with any input data.
+    Supports custom transformations for input data.
+    '''
+
+    def __init__(
+            self, input_loader: GenericDataLoader,
+            transform: Transformer):
+        '''
+        Create a new GenericPredictionDataset object.
+
+        Parameters:
+        ----------
+        input_loader: A function that loads the input data. Must return a sequence of inputs.
+        transform: A dictionary containing transformations for input data.
+        '''
+
+        self.input_loader = input_loader
+        self.input_identifiers = input_loader.get_ids()
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.input_loader)
+
+    def __getitem__(self, index: int) -> Sequence[torch.Tensor]:
+        inp = self.input_loader[index]
+        inp, *rest = self.unpack(inp)
+        inp = self.transform.apply_val(inp), rest
+
+        return inp

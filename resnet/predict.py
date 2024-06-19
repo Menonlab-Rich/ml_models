@@ -1,44 +1,48 @@
+from model import ResNet
+from dataset import ResnetDataModule, InputLoader
+from base.dataset import MockDataLoader
 from pytorch_lightning import Trainer
-from dataset import ResnetDataModule, InputLoader, TargetLoader
-from config import Config, CONFIG_FILE_PATH
-from pytorch_lightning.loggers import NeptuneLogger
-from tqdm import tqdm
-from torch import sigmoid, tensor
-import pandas as pd
-from torch.nn import BCEWithLogitsLoss
-from os import environ
+from common import helpers
+import os
 
-def load_models(resnet_ckpt_path: str, config: Config):
-    from model import BCEResnet
-    model = BCEResnet.load_from_checkpoint(
-        resnet_ckpt_path, strict=False)
-    input_loader = InputLoader(config.data_dir)
-    target_loader = TargetLoader(config.data_dir, config.classes)
+
+def parse_args():
+    parser = helpers.DebugArgParser()
+    parser.add_argument(
+        "--model-path", type=str, required=True,
+        help="Path to the model checkpoint.", dest="model_path")
+    parser.add_argument("image_path", type=str, nargs="+",
+                        help="Path to the image to predict.")
+    return parser.parse_args()
+
+
+def load_model(model_path: str, image_paths: str):
+    directories = [os.path.dirname(img_path) for img_path in image_paths]
+    assert len(set(directories)) == 1, "All images must be in the same directory."
+    directory = directories[0]
+    prediction_loader = InputLoader(directory=directory, files=image_paths)
+    model = ResNet.load_from_checkpoint(model_path, encoder=None, strict=False)
     data_module = ResnetDataModule.load_from_checkpoint(
-        resnet_ckpt_path, test_loaders=(input_loader, target_loader))
+        model_path, input_loader=MockDataLoader([]),
+        target_loader=MockDataLoader([]),
+        prediction_loader=prediction_loader,
+        n_workers=1
+    )
     return model, data_module
 
 
-def main(config: Config):
-    resnet_ckpt_path = r"checkpoints/resnet-epoch=04-val_accuracy=0.98.ckpt"
-    model, data_module = load_models(resnet_ckpt_path, config)
-    logger = NeptuneLogger(
-        api_key=environ.get("NEPTUNE_API_TOKEN"),  # replace with your own
-        project="richbai90/ResnetTest",  # format "workspace-name/project-name"
-        tags=["training", "autoencoder", "resnet"],  # optional
-    )
-    trainer_args = {
-        "logger": logger,
-        "max_epochs": config.epochs,
-        "precision": config.precision,
-        "accelerator": config.accelerator,
-        "accumulate_grad_batches": 10,
-    }
-
-    trainer = Trainer(**trainer_args)
-    trainer.test(model, datamodule=data_module)
+def main():
+    from common.func_helpers import flatten
+    args = parse_args()
+    model_path = args.model_path
+    image_path = args.image_path
+    model, data_module = load_model(model_path, image_path)
+    trainer = Trainer()
+    output = trainer.predict(model, datamodule=data_module)
+    output = [t.tolist() for t in output]
+    output = flatten(output)
+    print(output)
 
 
 if __name__ == '__main__':
-    config = Config(CONFIG_FILE_PATH)
-    main(config)
+    main()
