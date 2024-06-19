@@ -1,4 +1,6 @@
 import os
+import torch
+from argparse import ArgumentParser
 import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveraging
@@ -38,6 +40,7 @@ def manual_validation(input, target, model, _loss, img_name):
     assert loss == _loss, f"Loss mismatch: {loss} != {_loss}"
     return loss
     
+
 
 
 def main(config: Config, debug: bool = False, manual: bool = False):
@@ -84,32 +87,36 @@ def main(config: Config, debug: bool = False, manual: bool = False):
     }
 
     if debug:
-        trainer_args = {
+        trainer_args.update({
             "fast_dev_run": True,
-            "limit_train_batches": .1,
-            "limit_val_batches": .01,
-        }
+            "limit_train_batches": 0.1,
+            "limit_val_batches": 0.01,
+        })
 
     trainer = Trainer(**trainer_args)
 
     if manual:
         optimizer = model.configure_optimizers()
         data_module.setup('fit')
+        scaler = torch.cuda.amp.GradScaler()
+
         for epoch in range(config.epochs):
             model.train()
             for i, (img, target, _) in enumerate(data_module.train_dataloader()):
-                output = model(img)
-                loss = model.loss_fn(output, target)
-                model.backward(loss)
-                model.optimizer_step(
-                   epoch=epoch, batch_idx=i, optimizer=optimizer)
-                logger.log_metrics({"train_loss": loss}, step=i)
+                with torch.cuda.amp.autocast():
+                    output = model(img)
+                    loss = model.loss_fn(output, target)
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                logger.log_metrics({"train_loss": loss.item()}, step=i)
                 manual_validation(model=model, input=img, target=target, _loss=loss, img_name=_[0][0])
             model.eval()
             for i, (img, target, _) in enumerate(data_module.val_dataloader()):
-                output = model(img)
-                loss = model.loss_fn(output, target)
-                logger.log_metrics({"val_loss": loss}, step=i)
+                with torch.cuda.amp.autocast():
+                    output = model(img)
+                    loss = model.loss_fn(output, target)
+                logger.log_metrics({"val_loss": loss.item()}, step=i)
 
             logger.log_metrics({"epoch": epoch}, step=epoch)
     else:
