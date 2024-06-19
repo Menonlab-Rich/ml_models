@@ -121,7 +121,7 @@ def main(config: Config, debug: bool = False, manual: bool = False):
             logger.log_metrics({"epoch": epoch}, step=epoch)
     else:
         trainer.fit(model, data_module)
-        trainer.test(model, datamodule=data_module)
+        # trainer.test(model, datamodule=data_module)
 
 
 if __name__ == '__main__':

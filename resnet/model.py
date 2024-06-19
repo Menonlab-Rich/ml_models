@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 from torchmetrics.classification import BinaryAccuracy, BinaryConfusionMatrix
 from pytorch_lightning.loggers import NeptuneLogger
 from neptune.types import File
+from warnings import warn
 
 class ResNet(pl.LightningModule):
     def __init__(self, n_classes, n_channels=3, lr=1e-3, threshold=0.5):
@@ -34,7 +35,10 @@ class ResNet(pl.LightningModule):
         x, y, _ = batch
         y_hat = self(x).view(-1) # Flatten
         loss = self.loss_fn(y_hat, y)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        try:           
+            self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        except Exception as e:
+            warn(f'Error logging training metrics: {e}')
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -43,8 +47,11 @@ class ResNet(pl.LightningModule):
         loss = self.loss_fn(y_hat, y)
         self.validation_accuracy.update(y_hat, y)
         self.validation_bcm.update(y_hat, y)
-        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
-        self.log('val_accuracy', self.validation_accuracy.compute(), on_epoch=True, prog_bar=True)
+        try:
+            self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+            self.log('val_accuracy', self.validation_accuracy.compute(), on_epoch=True, prog_bar=True)
+        except Exception as e:
+            warn(f'Error logging validation metrics: {e}')
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -52,8 +59,11 @@ class ResNet(pl.LightningModule):
         y_hat = self(x)
         loss = self.loss_fn(y_hat, y)
         self.test_accuracy.update(y_hat, y)
-        self.log('test_loss', loss, on_epoch=True, prog_bar=True)
-        self.log('test_accuracy', self.test_accuracy.compute(), on_epoch=True, prog_bar=True)
+        try:
+            self.log('test_loss', loss, on_epoch=True, prog_bar=True)
+            self.log('test_accuracy', self.test_accuracy.compute(), on_epoch=True, prog_bar=True)
+        except Exception as e:
+            warn(f'Error logging test metrics: {e}')
         return loss
     
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
@@ -63,16 +73,23 @@ class ResNet(pl.LightningModule):
         return pred > self.threshold
 
     def on_validation_epoch_end(self):
-        fig, ax = self.validation_bcm.plot(labels=['Class 0', 'Class 1'])
-        self.logger.experiment['validation_bcm_plot'].log(File.as_image(fig))
-        self.validation_bcm.reset()
-        self.validation_accuracy.reset()
+        try:
+            fig, ax = self.validation_bcm.plot(labels=['Class 0', 'Class 1'])
+            self.logger.experiment['validation_bcm_plot'].log(File.as_image(fig))
+            self.validation_bcm.reset()
+            self.validation_accuracy.reset()
+        except Exception as e:
+          warn(f'Error logging validation metrics: {e}')  
 
     def on_test_epoch_end(self):
-        fig, ax = self.test_bcm.plot(labels=['Class 0', 'Class 1'])
-        self.logger.experiment['test_bcm_plot'].log(File.as_image(fig))
-        self.test_bcm.reset()
-        self.test_accuracy.reset()
+        try:
+            fig, ax = self.test_bcm.plot(labels=['Class 0', 'Class 1'])
+            self.logger.experiment['test_bcm_plot'].log(File.as_image(fig))
+            self.test_bcm.reset()
+            self.test_accuracy.reset()
+        except Exception as e:
+          warn(f'Error logging test metrics: {e}')
+        
 
 class BCEResnet(ResNet):
     def __init__(self, pos_weight=None, **kwargs):
