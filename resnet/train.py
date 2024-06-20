@@ -7,7 +7,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveragi
 from pytorch_lightning.loggers import NeptuneLogger
 from argparse import ArgumentParser
 from model import BCEResnet
-from dataset import ResnetDataModule, InputLoader, TargetLoader
+from dataset import ResnetDataModule, InputLoader, TargetLoader, SuperPixelLoader, SuperPixelTargetLoader
 from config import Config, CONFIG_FILE_PATH
 
 
@@ -43,9 +43,15 @@ def manual_validation(input, target, model, _loss, img_name):
 
 
 
-def main(config: Config, debug: bool = False, manual: bool = False):
-    input_loader = InputLoader(config.data_dir)
-    target_loader = TargetLoader(config.data_dir, config.classes)
+def main(config: Config, debug: bool = False, manual: bool = False, args=None):
+    if args.mode == "superpixel":
+        input_loader = SuperPixelLoader(config.data_dir)
+        target_loader = SuperPixelTargetLoader(config.data_dir, config.classes)
+        config.transform_type = "superpixel"
+    else:
+        input_loader = InputLoader(config.data_dir)
+        target_loader = TargetLoader(config.data_dir, config.classes)
+        config.transform_type = "resnet"
 
     data_module = ResnetDataModule(
         input_loader=input_loader,
@@ -65,9 +71,8 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         monitor='val_accuracy',
         dirpath='checkpoints',
         filename='resnet-{epoch:02d}-{val_accuracy:.2f}',
-        save_top_k=3,
         mode='max',
-        verbose=True
+        save_last=True,
     )
 
     swa = StochasticWeightAveraging(swa_lrs=1e-2)
@@ -128,6 +133,8 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--manual", action="store_true")
+    parser.add_argument("--config", type=str, default=CONFIG_FILE_PATH)
+    parser.add_argument("--mode", type=str, choices=["standard", "superpixel"], default="standard")
     args = parser.parse_args()
 
     config = Config(CONFIG_FILE_PATH)
