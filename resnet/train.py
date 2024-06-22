@@ -75,6 +75,7 @@ def main(config: Config, debug: bool = False, manual: bool = False):
     model = BCEResnet(
         lr=config.learning_rate,
         n_channels=config.input_channels,
+        batch_size=config.batch_size,
     )
 
     trainer_args = {
