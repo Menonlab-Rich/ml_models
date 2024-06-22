@@ -1,4 +1,3 @@
-import os
 from os import listdir, path
 from PIL import Image
 from glob import glob
@@ -7,8 +6,10 @@ import numpy as np
 from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule
 import warnings
+from config import Config, CONFIG_FILE_PATH
 import pickle
-from skimage import filters, transform
+from base.dataset import MockDataLoader
+
 
 
 class InputLoader(GenericDataLoader):
@@ -185,136 +186,18 @@ class TargetLoader(GenericDataLoader):
             self.directory, self.class_labels, files=train_ids), self.__class__(
             self.directory, self.class_labels, files=val_ids)
 
-
 class PredictionDataset(GenericPredictionDataset):
     def __init__(self, input_loader, transform=None):
         super(PredictionDataset, self).__init__(input_loader, transform)
-
+    
     def unpack(self, inputs):
         inputs, filenames = inputs
         return inputs, filenames
-
+    
     def __len__(self):
         return len(self.input_loader)
     
-class SuperPixelTargetLoader(TargetLoader):
-    def __init__(self, directory, class_labels, n_files=None, files=None, sp_size=32):
-        super(SuperPixelTargetLoader, self).__init__(directory, class_labels, n_files, files)
-
-        self.sp_size = sp_size
-        self._n_pixels = 0
-        self.mapping = []
-
-        for file_idx, file in enumerate(self.files):
-            assert file.endswith('.tif'), 'Only tiff files are supported'
-            img, _ = self._read(file)
-            thresholded_img = self._threshold_image(img, sp_size)
-            num_superpixels = int(np.sum(thresholded_img) / (sp_size ** 2))
-            for _ in range(num_superpixels):
-                self.mapping.append(file_idx)
-            self._n_pixels += num_superpixels
     
-    def __getitem__(self, idx):
-        file_idx = self.mapping[idx]
-        file_name = self.files[file_idx]
-        return self._read(file_name)
-    
-    def __len__(self):
-        return self._n_pixels
-        
-
-class SuperPixelLoader(GenericDataLoader):
-    def __init__(self, directory, n_files=None, files=None, sp_size=32):
-        self.directory = directory
-        if files is not None:
-            self.files = files
-        elif not path.isdir(directory):
-            # Handle glob pattern
-            self.files = sorted(glob(directory))
-            self.directory = path.dirname(directory)
-        else:
-            self.files = sorted(
-                [f for f in listdir(directory) if f.endswith('.tif')])
-        if n_files is not None:
-            self.files = self.files[:n_files]
-
-        self.sp_size = sp_size
-        self._n_pixels = 0
-        self.mapping = []
-
-        for file_idx, file in enumerate(self.files):
-            assert file.endswith('.tif'), 'Only tiff files are supported'
-            img, _ = self._read(file)
-            thresholded_img = self._threshold_image(img, sp_size)
-            num_superpixels = int(np.sum(thresholded_img) / (sp_size ** 2))
-            for block_idx in range(num_superpixels):
-                self.mapping.append((file_idx, block_idx))
-            self._n_pixels += num_superpixels
-
-    def _threshold_image(self, img, block_size=32):
-        def sum_over_blocks(image, block_size):
-            for i in range(0, image.shape[0], block_size):
-                for j in range(0, image.shape[1], block_size):
-                    yield np.sum(image[i:i + block_size, j:j + block_size])
-
-        # Apply Gaussian Blur
-        cols = img.shape[1]
-        rows = img.shape[0]
-        # normalize to [0, 1]
-        img = (img - np.min(img)) / (np.max(img) - np.min(img))
-        # Sum over blocks
-        sums = np.array(list(sum_over_blocks(img, block_size)))
-        # reshape the sums to the correct shape
-        new_height = int(np.ceil(rows / block_size))
-        new_width = int(np.ceil(cols / block_size))
-        sums = sums[:new_height * new_width]
-        sums = sums.reshape(new_height, new_width)
-
-        # convert to 0 - 1
-        sums = (sums - np.min(sums)) / (np.max(sums) - np.min(sums))
-
-        # Threshold the image to keep only the brightest regions
-        thresh = filters.threshold_otsu(sums, nbins=(2**16))
-        # add a small margin to the threshold (35% of the difference between the max and the threshold)
-        thresh -= 0.35 * (np.max(sums) - thresh)
-        binary = sums > thresh
-
-        # Expand the binary image to the original size
-        binary = transform.resize(binary, (rows, cols), order=0)
-
-        # Apply the binary mask to the original image
-        img = img * binary
-        return img
-
-    def __len__(self):
-        return self._n_pixels
-
-    def __getitem__(self, idx):
-        file_idx, block_idx = self.mapping[idx]
-        img, _ = self._read(self.files[file_idx])
-        sp_size = self.sp_size
-        row = (block_idx // (img.shape[1] // sp_size)) * sp_size
-        col = (block_idx % (img.shape[1] // sp_size)) * sp_size
-        return img[row:row + sp_size, col:col + sp_size]
-
-    def __iter__(self):
-        for file in self.files:
-            yield self._read(file)
-
-    def get_ids(self, i=None, batch_size=1):
-        if i is not None:
-            return self.files[i:i+batch_size]
-        return self.files
-
-    def _read(self, file):
-        file = path.basename(file)
-        return np.array(Image.open(path.join(self.directory, file))), file
-
-    def post_split(self, train_ids, val_ids):
-        return SuperPixelLoader(
-            self.directory, files=train_ids), SuperPixelLoader(
-            self.directory, files=val_ids)
-
 
 class ResnetDataset(GenericDataset):
     """
@@ -393,8 +276,8 @@ class ResnetDataModule(LightningDataModule):
         self.save_hyperparameters({
             "batch_size": batch_size, "n_workers": n_workers,
         })
-
-    def _split_data(self, loader: GenericDataLoader, split_ratio: float):
+    
+    def _split_data(self, loader:GenericDataLoader, split_ratio:float):
         """
         Split the data into training and validation sets.
 
@@ -433,13 +316,11 @@ class ResnetDataModule(LightningDataModule):
         if stage == 'predict':
             self.prediction_set = PredictionDataset(
                 self.prediction_loader, self.transforms)
-
     def _get_test_set(self):
         if isinstance(self.test_loaders, str):
             if self.test_loaders.lower() == 'validation':
                 if getattr(self, 'val_inputs', None) is None:
-                    warnings.warn(
-                        'Validation set not found. Trying to load from input_loader state dict.')
+                    warnings.warn('Validation set not found. Trying to load from input_loader state dict.')
                     try:
                         self.val_inputs = self.val_set.input_loader
                         self.val_targets = self.val_set.target_loader
@@ -450,7 +331,7 @@ class ResnetDataModule(LightningDataModule):
         elif self.test_loaders:
             return ResnetDataset(*self.test_loaders, self.transforms)
         return None
-
+    
     def __setattr__(self, name: str, value: any) -> None:
         """
         Set an attribute of the data module.
@@ -459,9 +340,7 @@ class ResnetDataModule(LightningDataModule):
         name (str): Name of the attribute.
         value (Any): Value to set.
         """
-        if name in (
-            'input_loader', 'target_loader', 'prediction_loader',
-                'test_loaders'):
+        if name in ('input_loader', 'target_loader', 'prediction_loader', 'test_loaders'):
             if getattr(self, name, None) is not None:
                 warnings.warn(f'Refusing to set {name} as it is already set.')
                 return
@@ -475,7 +354,7 @@ class ResnetDataModule(LightningDataModule):
         dict: State dictionary.
         """
         return {
-            'batch_size': self.batch_size,
+            'batch_size': self.batch_size, 
             'n_workers': self.n_workers,
             'input_loader': pickle.dumps(self.input_loader),
             'target_loader': pickle.dumps(self.target_loader),
@@ -495,10 +374,8 @@ class ResnetDataModule(LightningDataModule):
             self.batch_size = state_dict['batch_size']
             self.n_workers = state_dict['n_workers']
             self.input_loader = self._load_if_bytes(state_dict['input_loader'])
-            self.target_loader = self._load_if_bytes(
-                state_dict['target_loader'])
-            self.prediction_loader = self._load_if_bytes(
-                state_dict['prediction_loader'])
+            self.target_loader = self._load_if_bytes(state_dict['target_loader'])
+            self.prediction_loader = self._load_if_bytes(state_dict['prediction_loader'])
             self.test_loaders = self._load_if_bytes(state_dict['test_loaders'])
             self.transforms = self._load_if_bytes(state_dict['transforms'])
             if (not self.input_loader or not self.target_loader) and (not self.prediction_loader and not self.test_loaders):
@@ -512,7 +389,6 @@ class ResnetDataModule(LightningDataModule):
             self.input_loader, 0.8)
         self.train_targets, self.val_targets = self._split_data(
             self.target_loader, 0.8)
-
     def train_dataloader(self):
         """
         Get the DataLoader for training data.

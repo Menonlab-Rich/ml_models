@@ -53,47 +53,6 @@ def get_val_transform():
         "target": ToTensorFloat
     }
 
-def get_superpixel_train_transform():
-    return {
-        "input": A.Compose([
-            A.ToFloat(always_apply=True),
-            ToTensorV2(),
-        ]),
-        "target": ToTensorFloat
-    }
-
-def get_superpixel_val_transform():
-    return {
-        "input": A.Compose([
-            A.ToFloat(always_apply=True),
-            ToTensorV2(),
-        ]),
-        "target": ToTensorFloat
-    }
-    
-class SuperPixelTransformer(Transformer):
-    def __init__(self):
-        super(SuperPixelTransformer, self).__init__(
-            get_superpixel_train_transform(),
-            get_superpixel_val_transform()
-        )
-
-    def apply_train(self, x, input=True):
-        if input:
-            return self.train_transform['input'](image=x)['image']
-        else:
-            return self.train_transform['target'](x)
-
-    def apply_val(self, x, input=True):
-        if input:
-            return self.val_transform['input'](image=x)['image']
-        else:
-            return self.val_transform['target'](x)
-
-    def __call__(self, inputs, targets) -> List[Type[torch.Tensor]]:
-        inputs = self.apply_train(inputs, input=True)
-        targets = self.apply_val(targets, input=False)
-        return inputs, targets
 
 class ResnetTransformer(Transformer):
     def __init__(self):
@@ -124,35 +83,12 @@ class Config(BaseConfigHandler):
     def __init__(self, file_path: str):
         super(Config, self).__init__()
         self.config = yaml.load(open(file_path, 'r'), Loader=yaml.FullLoader)
-        self._transform = None
-    
-    @property
-    def transform(self) -> Transformer:
-        '''
-        Get the transformer. Cache the transformer to avoid creating multiple instances
-        '''
-        xform_type = self.transform_type
-        if xform_type == 'NoneType':
-            # Default to ResnetTransformer if no transformer is set
-            # TODO: In the future we might want to raise an error if no transformer is set
-            self._transform = ResnetTransformer()
-        return self._transform
-    
-    @property
-    def transform_type(self) -> Transformer:
-        return type(self._transform).__name__
-    
-    @transform_type.setter
-    def transform_type(self, value: str):
-        '''
-        Set the transformer type
-        '''
-        if value == 'superpixel':
-            self._transform = SuperPixelTransformer()
-        elif value == 'resnet':
-            self._transform = ResnetTransformer()
-        else:
-            raise ValueError(f"Invalid transformer type: {value}")
+        pipeline = A.Compose([
+            A.ToFloat(always_apply=True),
+            ToTensorV2()
+        ])
+
+        self.transform = ResnetTransformer()
 
     def __getattr__(self, name: str) -> any:
         return self.config[name]
