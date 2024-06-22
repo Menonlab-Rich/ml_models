@@ -88,6 +88,15 @@ class ResNet(pl.LightningModule):
         pred = torch.sigmoid(y_hat)
         return pred > self.threshold
 
+    def on_train_epoch_start(self) -> None:
+        # See https://github.com/Lightning-AI/pytorch-lightning/issues/17245
+        if self.current_epoch == self.trainer.max_epochs - 1:
+            # Workaround to always save the last epoch until the bug is fixed in lightning (https://github.com/Lightning-AI/lightning/issues/4539)
+            self.trainer.check_val_every_n_epoch = 1
+
+            # Disable backward pass for SWA until the bug is fixed in lightning (https://github.com/Lightning-AI/lightning/issues/17245)
+            self.automatic_optimization = False
+
     def on_validation_epoch_end(self):
         try:
             fig, ax = self.validation_bcm.plot(labels=['Class 0', 'Class 1'])
