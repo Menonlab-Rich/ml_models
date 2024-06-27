@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import nn, Tensor
 import torch.nn.functional as F
 from typing import Type, Union, Callable
 import pytorch_lightning as pl
@@ -57,7 +57,7 @@ def ce_loss(true, logits, weights, ignore=255):
     return ce_loss
 
 
-def dice_loss(true, logits, eps=1e-7, multiclass=False):
+def dice_loss(true: Tensor, logits: Tensor, eps=1e-7, multiclass=False):
     """Computes the Sørensen–Dice loss.
 
     Note that PyTorch optimizers minimize a loss. In this
@@ -75,6 +75,7 @@ def dice_loss(true, logits, eps=1e-7, multiclass=False):
     """
     device = true.device # Ensure the device is the same
     num_classes = logits.shape[1]
+    true = true.long() # Ensure the true values are integers
     if not multiclass:
         assert num_classes == 1, "To perform a multiclass dice loss, set multiclass=True."
     if num_classes == 1:
