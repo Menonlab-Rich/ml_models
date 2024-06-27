@@ -196,3 +196,4 @@ class GenericPredictionDataset(data.Dataset):
         inp = self.transform.apply_val(inp), rest
 
         return inp
+
