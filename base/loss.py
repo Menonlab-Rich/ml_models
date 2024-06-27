@@ -3,6 +3,7 @@ from torch import nn, Tensor
 import torch.nn.functional as F
 from typing import Type, Union, Callable
 import pytorch_lightning as pl
+from torchmetrics.classification import Dice
 
 """Common image segmentation losses.
 """
@@ -57,47 +58,52 @@ def ce_loss(true, logits, weights, ignore=255):
     return ce_loss
 
 
-def dice_loss(true: torch.Tensor, logits: torch.Tensor, eps=1e-7, multiclass=False):
-    """Computes the Sørensen–Dice loss.
-
-    Note that PyTorch optimizers minimize a loss. In this
-    case, we would like to maximize the dice loss so we
-    return the negated dice loss.
+def dice_loss(
+        true: torch.Tensor, logits: torch.Tensor, num_classes: int,
+        threshold=0.5, zero_division=0, average='micro', mdmc_average=None,
+        ignore_index=None, top_k=None, **kwargs):
+    """Computes the Dice loss using torchmetrics.Dice.
 
     Args:
-        true: a tensor of shape [B, 1, H, W].
-        logits: a tensor of shape [B, C, H, W]. Corresponds to
-            the raw output or logits of the model.
-        eps: added to the denominator for numerical stability.
+        true: a tensor of shape [B, H, W] or [B, 1, H, W].
+        logits: a tensor of shape [B, C, H, W]. Corresponds to the raw output or logits of the model.
+        num_classes: Number of classes.
+        threshold: Threshold for transforming probability or logit predictions to binary (0,1) predictions.
+        zero_division: The value to use for the score if denominator equals zero.
+        average: Defines the reduction that is applied. Options: ['micro', 'macro', 'weighted', 'none', 'samples'].
+        mdmc_average: Defines how averaging is done for multi-dimensional multi-class inputs.
+        ignore_index: Integer specifying a target class to ignore.
+        top_k: Number of the highest probability or logit score predictions considered.
 
     Returns:
-        dice_loss: the Sørensen–Dice loss.
+        dice_loss: The negated Dice coefficient as a loss.
     """
     device = true.device  # Ensure the device is the same
-    num_classes = logits.shape[1]
-    true = true.long().squeeze()  # Ensure the true values are integers
-    if not multiclass:
-        assert num_classes == 1, "To perform a multiclass dice loss, set multiclass=True."
-    if num_classes == 1:
-        true_1_hot = torch.eye(num_classes + 1).to(device)[true]
-        true_1_hot = true_1_hot.permute(0, 3, 1, 2).float()
-        true_1_hot_f = true_1_hot[:, 0:1, :, :]
-        true_1_hot_s = true_1_hot[:, 1:2, :, :]
-        true_1_hot = torch.cat([true_1_hot_s, true_1_hot_f], dim=1)
-        pos_prob = torch.sigmoid(logits)
-        neg_prob = 1 - pos_prob
-        probas = torch.cat([pos_prob, neg_prob], dim=1)
-    else:
-        true_1_hot = torch.eye(num_classes).to(device)[true]
-        true_1_hot = true_1_hot.permute(0, 3, 1, 2).float()
-        probas = F.softmax(logits, dim=1)
 
-    true_1_hot = true_1_hot.type(logits.type())
-    dims = (0,) + tuple(range(2, true.ndimension()))
-    intersection = torch.sum(probas * true_1_hot, dims)
-    cardinality = torch.sum(probas + true_1_hot, dims)
-    dice_loss = (2. * intersection / (cardinality + eps)).mean()
-    return (1 - dice_loss)
+    # Ensure true values are integers and of shape [B, H, W]
+    if true.dim() == 4 and true.shape[1] == 1:
+        true = true.squeeze(1)  # Squeeze only if there's a singleton dimension
+    true = true.long()
+
+    # Initialize the Dice metric
+    dice_metric = Dice(
+        num_classes=num_classes, threshold=threshold,
+        zero_division=zero_division, average=average, mdmc_average=mdmc_average,
+        ignore_index=ignore_index, top_k=top_k).to(device)
+
+    # Apply the appropriate activation function to logits
+    if num_classes > 1:
+        probas = F.softmax(logits, dim=1)
+    else:
+        probas = torch.sigmoid(logits)
+
+    # Compute the Dice coefficient
+    dice_coeff = dice_metric(probas, true)
+
+    # Negate the Dice coefficient to convert it into a loss
+    dice_loss = 1 - dice_coeff
+
+    return dice_loss
 
 
 def jaccard_loss(true, logits, eps=1e-7):
@@ -197,12 +203,14 @@ def ce_jaccard(true, pred, log=False, w1=1, w2=1):
 def focal_loss(true, pred):
     pass
 
+
 class JML1(nn.Module):
     '''
     A soft Jaccard loss that uses the L1 norm to calculate the error
     Based on the paper Jaccard Metric Losses: Optimizing the Jaccard Index with Soft Labels
     https://arxiv.org/pdf/2302.05666
     '''
+
     def __init__(self, num_classes=2, weights=None, smoothing=0.1, k=3):
         super(JML1, self).__init__()
         self.num_classes = num_classes
@@ -299,6 +307,7 @@ class PowerJaccardLoss(nn.Module):
         # Averaging over both batch and classes
         return 1 - torch.mean(jaccard_index)
 
+
 class MultiClassDiceLoss(nn.Module):
     def __init__(self, weights=None, smoothing=1e-6):
         super(MultiClassDiceLoss, self).__init__()
@@ -311,13 +320,13 @@ class MultiClassDiceLoss(nn.Module):
         loss = dice_loss(y_true, y_pred, eps=self.smoothing)
         if getattr(self, 'weights', None) is not None:
             loss = self.weights * loss
-            
-            
+
+
 class WeightedMSELoss(nn.Module):
     def __init__(self, weights=None, scale=1.0):
         '''
         Create a weighted MSE loss function
-        
+
         Parameters:
         ----------
         weights: torch.Tensor
@@ -325,7 +334,7 @@ class WeightedMSELoss(nn.Module):
         scale: float
             The scale factor to apply to the loss
             Default: 1.0 (no scaling)
-            
+
         Throws:
         -------
         AssertionError: If the input and target are not on the same device
@@ -333,7 +342,8 @@ class WeightedMSELoss(nn.Module):
         '''
         super(WeightedMSELoss, self).__init__()
         self.register_buffer('weight', weights)
-        self.register_buffer('scale', torch.tensor(scale)) # Register the scale factor
+        self.register_buffer('scale', torch.tensor(scale)
+                             )  # Register the scale factor
 
     def forward(self, input, target, classes=None):
         assert input.device == target.device, 'Input and target must be on the same device'
@@ -349,13 +359,15 @@ class WeightedMSELoss(nn.Module):
 
             normalized_weight = weights / weights.sum()
             # Expand the weights to the same shape as the input for broadcasting
-            normalized_weight = normalized_weight.view(-1, 1, 1, 1).expand_as(input)
+            normalized_weight = normalized_weight.view(
+                -1, 1, 1, 1).expand_as(input)
             # Compute the weighted MSE
             loss = (normalized_weight * (input - target) ** 2).mean()
         else:
             # Fallback to regular MSE if no weights are provided
             loss = ((input - target) ** 2).mean()
-        return loss * self.scale # Scale the loss by the scale factor
+        return loss * self.scale  # Scale the loss by the scale factor
+
 
 def with_loss_fn(loss_fn: Union[str, Callable, nn.Module],
                  **kwargs) -> Callable[[Type[pl.LightningModule]],
