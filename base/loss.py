@@ -57,7 +57,7 @@ def ce_loss(true, logits, weights, ignore=255):
     return ce_loss
 
 
-def dice_loss(true: Tensor, logits: Tensor, eps=1e-7, multiclass=False):
+def dice_loss(true: torch.Tensor, logits: torch.Tensor, eps=1e-7, multiclass=False):
     """Computes the Sørensen–Dice loss.
 
     Note that PyTorch optimizers minimize a loss. In this
@@ -73,13 +73,13 @@ def dice_loss(true: Tensor, logits: Tensor, eps=1e-7, multiclass=False):
     Returns:
         dice_loss: the Sørensen–Dice loss.
     """
-    device = true.device # Ensure the device is the same
+    device = true.device  # Ensure the device is the same
     num_classes = logits.shape[1]
-    true = true.long() # Ensure the true values are integers
+    true = true.long().squeeze()  # Ensure the true values are integers
     if not multiclass:
         assert num_classes == 1, "To perform a multiclass dice loss, set multiclass=True."
     if num_classes == 1:
-        true_1_hot = torch.eye(num_classes + 1).to(device)[true.squeeze(1)]
+        true_1_hot = torch.eye(num_classes + 1).to(device)[true]
         true_1_hot = true_1_hot.permute(0, 3, 1, 2).float()
         true_1_hot_f = true_1_hot[:, 0:1, :, :]
         true_1_hot_s = true_1_hot[:, 1:2, :, :]
@@ -88,9 +88,10 @@ def dice_loss(true: Tensor, logits: Tensor, eps=1e-7, multiclass=False):
         neg_prob = 1 - pos_prob
         probas = torch.cat([pos_prob, neg_prob], dim=1)
     else:
-        true_1_hot = torch.eye(num_classes).to(device)[true.squeeze(1)]
+        true_1_hot = torch.eye(num_classes).to(device)[true]
         true_1_hot = true_1_hot.permute(0, 3, 1, 2).float()
         probas = F.softmax(logits, dim=1)
+
     true_1_hot = true_1_hot.type(logits.type())
     dims = (0,) + tuple(range(2, true.ndimension()))
     intersection = torch.sum(probas * true_1_hot, dims)
