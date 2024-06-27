@@ -57,7 +57,7 @@ def ce_loss(true, logits, weights, ignore=255):
     return ce_loss
 
 
-def dice_loss(true, logits, eps=1e-7):
+def dice_loss(true, logits, eps=1e-7, multiclass=False):
     """Computes the Sørensen–Dice loss.
 
     Note that PyTorch optimizers minimize a loss. In this
@@ -74,6 +74,8 @@ def dice_loss(true, logits, eps=1e-7):
         dice_loss: the Sørensen–Dice loss.
     """
     num_classes = logits.shape[1]
+    if not multiclass:
+        assert num_classes == 1, "To perform a multiclass dice loss, set multiclass=True."
     if num_classes == 1:
         true_1_hot = torch.eye(num_classes + 1)[true.squeeze(1)]
         true_1_hot = true_1_hot.permute(0, 3, 1, 2).float()
