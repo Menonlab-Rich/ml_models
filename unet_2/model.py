@@ -67,12 +67,12 @@ class UNetLightning(pl.LightningModule):
 
         if self.model.n_classes == 1:
             loss = self.criterion(masks_pred.squeeze(1), true_masks.float())
-            loss += dice_loss(true_masks.float(), masks_pred.squeeze(1))
+            loss += dice_loss(true_masks, masks_pred.squeeze(1))
             val_dice = -loss  # since dice_loss is negated
         else:
             loss = self.criterion(masks_pred, true_masks)
             loss += dice_loss(
-                F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2).float(),
+                F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2),
                 F.softmax(masks_pred, dim=1).float(),
                 multiclass=True
             )
@@ -91,11 +91,11 @@ class UNetLightning(pl.LightningModule):
 
         if self.model.n_classes == 1:
             loss = self.criterion(masks_pred.squeeze(1), true_masks.float())
-            loss += dice_loss(true_masks.float(), masks_pred.squeeze(1))
+            loss += dice_loss(true_masks, masks_pred.squeeze(1))
         else:
             loss = self.criterion(masks_pred, true_masks)
             loss += dice_loss(
-                F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2).float(),
+                F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2),
                 F.softmax(masks_pred, dim=1).float(),
                 multiclass=True
             )
