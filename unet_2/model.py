@@ -7,6 +7,7 @@ See: https://github.com/milesial/Pytorch-UNet/blob/master/train.py
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from torch import optim, nn
+import torch
 from pytorch_model import UNet
 from base.loss import DiceLoss
 from base.metrics import GeneralizedDiceScore
@@ -83,10 +84,12 @@ class UNetLightning(pl.LightningModule):
         }
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
+        pred = F.softmax(outputs['pred'], dim=1)
+        pred = torch.argmax(pred, dim=1)
         self.val_outputs.append(
             (outputs['img'],
              outputs['mask'],
-             outputs['pred']))
+             pred))
 
     def on_validation_epoch_end(self, *args, **kwargs):
         from random import sample
