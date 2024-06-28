@@ -61,7 +61,7 @@ class UNetLightning(pl.LightningModule):
 
         # Update and log the training loss
         self.train_loss_metric.update(loss)
-        self.log('train_loss', self.train_loss_metric,
+        self.log('train_loss', self.train_loss_metric.compute(),
                  on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
@@ -73,8 +73,8 @@ class UNetLightning(pl.LightningModule):
         # Update and log the custom accuracy
         self.val_accuracy.update(masks_pred, true_masks)
         self.val_loss_metric.update(loss)
-        self.log('val_loss', self.val_loss_metric, on_epoch=True, prog_bar=True)
-        self.log('val_dice', self.val_accuracy, on_epoch=True, prog_bar=True)
+        self.log('val_loss', self.val_loss_metric.compute(), on_epoch=True, prog_bar=True)
+        self.log('val_dice', self.val_accuracy.compute(), on_epoch=True, prog_bar=True)
         return {
             'loss': loss,
             'accuracy': self.val_accuracy,
