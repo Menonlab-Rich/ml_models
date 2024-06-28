@@ -52,7 +52,7 @@ class UNetLightning(pl.LightningModule):
             loss += dice_loss(
                 F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2).float(),
                 F.softmax(masks_pred, dim=1).float(),
-                multiclass=True
+                self.hparams.n_classes,
             )
         
         # Update and log the custom accuracy
@@ -74,7 +74,7 @@ class UNetLightning(pl.LightningModule):
             loss += dice_loss(
                 F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2),
                 masks_pred.float(),
-                multiclass=True
+                self.hparams.n_classes,
             )
             val_dice = -loss  # since dice_loss is negated
         
@@ -97,7 +97,7 @@ class UNetLightning(pl.LightningModule):
             loss += dice_loss(
                 F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2),
                 F.softmax(masks_pred, dim=1).float(),
-                multiclass=True
+                self.hparams.n_classes,
             )
 
         self.log('test_loss', loss, on_epoch=True, prog_bar=True)
