@@ -58,49 +58,6 @@ def ce_loss(true, logits, weights, ignore=255):
     return ce_loss
 
 
-def dice_loss(true: torch.Tensor, logits: torch.Tensor, num_classes: int, include_background=False, per_class=False, weight_type='square'):
-    """Computes the Generalized Dice loss using torchmetrics.functional.segmentation.generalized_dice_score.
-
-    Args:
-        true: a tensor of shape [B, C, H, W] or [B, H, W].
-        logits: a tensor of shape [B, C, H, W]. Corresponds to the raw output or logits of the model.
-        num_classes: Number of classes.
-        include_background: Whether to include the background class in the computation.
-        per_class: Whether to compute the metric for each class separately.
-        weight_type: The type of weight to apply to each class. Options: ['square', 'simple', 'linear'].
-
-    Returns:
-        generalized_dice_loss: The negated Generalized Dice Score as a loss.
-    """
-    device = true.device  # Ensure the device is the same
-    
-    # Ensure true values are integers and squeeze any singleton channel dimension
-    true = true.long()
-    if true.dim() == 4 and true.shape[1] == 1:
-        true = true.squeeze(1)  # Now true should be [B, H, W]
-
-    # Apply the appropriate activation function to logits
-    if num_classes > 1:
-        probas = F.softmax(logits, dim=1)
-    else:
-        probas = torch.sigmoid(logits)
-
-    # Ensure true tensor is of the same shape as probas
-    if true.dim() == 3:  # If true is [B, H, W], unsqueeze to [B, 1, H, W]
-        true = true.unsqueeze(1)
-
-    # Compute the Generalized Dice Score
-    gds = generalized_dice_score(probas, true, num_classes=num_classes, include_background=include_background, per_class=per_class, weight_type=weight_type)
-    
-    # Print Generalized Dice Score for debugging
-    print(f"Generalized Dice Score: {gds}")
-
-    # Negate the Generalized Dice Score to convert it into a loss
-    generalized_dice_loss = 1 - gds
-    
-    return generalized_dice_loss
-
-
 def jaccard_loss(true, logits, eps=1e-7):
     """Computes the Jaccard loss, a.k.a the IoU loss.
 
@@ -303,20 +260,6 @@ class PowerJaccardLoss(nn.Module):
         return 1 - torch.mean(jaccard_index)
 
 
-class MultiClassDiceLoss(nn.Module):
-    def __init__(self, weights=None, smoothing=1e-6):
-        super(MultiClassDiceLoss, self).__init__()
-        # If weights are not provided, use equal weighting
-        if weights is not None:
-            self.register_buffer('weights', weights)
-        self.smoothing = smoothing
-
-    def forward(self, y_pred, y_true):
-        loss = dice_loss(y_true, y_pred, eps=self.smoothing)
-        if getattr(self, 'weights', None) is not None:
-            loss = self.weights * loss
-
-
 class WeightedMSELoss(nn.Module):
     def __init__(self, weights=None, scale=1.0):
         '''
@@ -387,3 +330,101 @@ def with_loss_fn(loss_fn: Union[str, Callable, nn.Module],
         return WrappedClass
 
     return decorator
+
+class BinaryDiceLoss(nn.Module):
+    """Dice loss of binary class
+    Args:
+        smooth: A float number to smooth loss, and avoid NaN error, default: 1
+        p: Denominator value: \sum{x^p} + \sum{y^p}, default: 2
+        predict: A tensor of shape [N, *]
+        target: A tensor of shape same with predict
+        reduction: Reduction method to apply, return mean over batch if 'mean',
+            return sum if 'sum', return a tensor of shape [N,] if 'none'
+    Returns:
+        Loss tensor according to arg reduction
+    Raise:
+        Exception if unexpected reduction
+    """
+    def __init__(self, smooth=1, p=2, reduction='mean'):
+        super(BinaryDiceLoss, self).__init__()
+        self.smooth = smooth
+        self.p = p
+        self.reduction = reduction
+
+    def forward(self, predict, target):
+        assert predict.shape[0] == target.shape[0], "predict & target batch size don't match"
+        predict = predict.contiguous().view(predict.shape[0], -1)
+        target = target.contiguous().view(target.shape[0], -1)
+
+        num = torch.sum(torch.mul(predict, target), dim=1) + self.smooth
+        den = torch.sum(predict.pow(self.p) + target.pow(self.p), dim=1) + self.smooth
+
+        loss = 1 - num / den
+
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        elif self.reduction == 'none':
+            return loss
+        else:
+            raise Exception('Unexpected reduction {}'.format(self.reduction))
+
+
+class DiceLoss(nn.Module):
+    """Dice loss for multiclass segmentation
+    Args:
+        weight: An array of shape [num_classes,]
+        ignore_index: class index to ignore
+        predict: A tensor of shape [N, C, H, W]
+        target: A tensor of shape [N, H, W]
+        other args pass to BinaryDiceLoss
+    Returns:
+        Loss tensor according to BinaryDiceLoss
+    """
+    def __init__(self, weight=None, ignore_index=None, **kwargs):
+        super(DiceLoss, self).__init__()
+        self.kwargs = kwargs
+        self.weight = weight
+        self.ignore_index = ignore_index
+
+    def forward(self, predict, target):
+        assert predict.shape[0] == target.shape[0], 'predict & target batch size do not match'
+        num_classes = predict.shape[1]
+        target = target.squeeze(1) # [N, 1, H, W] -> [N, H, W]
+
+        # One-hot encode the target tensor if necessary
+        if target.dim() == 3: # [N, H, W]
+            target = F.one_hot(target, num_classes).permute(0, 3, 1, 2).float()
+
+        # Print shapes for debugging
+        print(f"predict shape: {predict.shape}")
+        print(f"one-hot encoded target shape: {target.shape}")
+
+        dice = BinaryDiceLoss(**self.kwargs)
+        total_loss = 0
+        predict = F.softmax(predict, dim=1)
+
+        for i in range(num_classes):
+            if i != self.ignore_index:
+                dice_loss = dice(predict[:, i], target[:, i])
+                if self.weight is not None:
+                    assert self.weight.shape[0] == num_classes, \
+                        'Expect weight shape [{}], got [{}]'.format(num_classes, self.weight.shape[0])
+                    dice_loss *= self.weight[i]
+                total_loss += dice_loss
+
+        return total_loss / num_classes
+
+# Example usage
+if __name__ == "__main__":
+    # Example prediction and target tensors
+    preds = torch.randn(2, 3, 256, 256)  # [N, C, H, W]
+    targets = torch.randint(0, 3, (2, 256, 256))  # [N, H, W]
+
+    # Instantiate the loss function
+    loss_fn = DiceLoss(weight=torch.tensor([1.0, 1.0, 1.0]), ignore_index=None)
+
+    # Compute the loss
+    loss = loss_fn(preds, targets)
+    print(f"Loss: {loss.item()}")

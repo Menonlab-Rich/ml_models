@@ -8,8 +8,9 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from torch import optim, nn
 from pytorch_model import UNet
-from base.loss import dice_loss
+from base.loss import DiceLoss
 from base.metrics import ClassSpecificAccuracy
+
 
 
 
@@ -25,6 +26,7 @@ class UNetLightning(pl.LightningModule):
         self.momentum = momentum
         self.amp = amp
         self.criterion = nn.CrossEntropyLoss() if n_classes > 1 else nn.BCEWithLogitsLoss()
+        self.dice_loss = DiceLoss(ignore_index=0)  # 0 is the background class
         self.train_accuracy = ClassSpecificAccuracy(ignore_indices=[0])  # 0 is the background class
         self.val_accuracy = ClassSpecificAccuracy(ignore_indices=[0])
         self.n_classes = n_classes
@@ -45,7 +47,7 @@ class UNetLightning(pl.LightningModule):
         if self.n_classes == 1:
             masks_pred = masks_pred.squeeze(1)
         criterion_loss = self.criterion(masks_pred, masks_true)
-        dloss = dice_loss(masks_true, masks_pred, self.n_classes)
+        dloss = self.dice_loss(masks_pred, masks_true)
         return criterion_loss + dloss
 
     def training_step(self, batch, batch_idx):
