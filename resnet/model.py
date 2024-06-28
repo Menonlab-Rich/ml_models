@@ -70,7 +70,7 @@ class ResNet(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         x, y, _ = batch
-        y_hat = self(x)
+        y_hat = self(x).view(-1)
         loss = self.loss_fn(y_hat, y)
         self.test_accuracy.update(y_hat, y)
         try:

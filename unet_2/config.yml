@@ -1,18 +1,22 @@
 # define the root directory that all other paths are relative to
-root_dir: &root_dir .
-data_dir: D:\CZI_scope\code\preprocess\tifs
-test_dir: D:\CZI_scope\code\preprocess\validation\sampled 
+root_dir: &root_dir ../../data/transfer/preprocess/
+data_dir: !path [*root_dir, "cropped"]
+mask_dir: !path [*root_dir, "masks"]
+target_dir: !path [*root_dir, "masks"]
+test_dir: !path [*root_dir, "tifs"]
 out_dir: !path [*root_dir, "output"]
 input_channels: 1
 learning_rate: 1.e-4
-batch_size: 16 
+batch_size: 16
 epochs: 5
 device: cuda # Example: 'cpu' or 'cuda'
 
-classes: 
+classes:
+  - "bg"
   - "605"
   - "625"
 weights:
+  - 1
   - .34
   - 2.95
 
@@ -27,3 +31,4 @@ debug:
   epochs: 5
   train_batches: 0.05
   val_batches: 0.01
+
