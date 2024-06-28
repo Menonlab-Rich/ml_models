@@ -74,7 +74,13 @@ class UNetLightning(pl.LightningModule):
         self.val_loss_metric.update(loss)
         self.log('val_loss', self.val_loss_metric, on_epoch=True, prog_bar=True)
         self.log('val_dice', self.val_accuracy, on_epoch=True, prog_bar=True)
-        return {'loss': loss, 'accuracy': self.val_accuracy}
+        return {
+            'loss': loss,
+            'accuracy': self.val_accuracy,
+            'img': images[0],
+            'mask': true_masks[0],
+            'pred': masks_pred[0]
+        }
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
         self.val_outputs.append(
@@ -90,7 +96,8 @@ class UNetLightning(pl.LightningModule):
         if len(self.val_outputs) == 0:
             return  # No images to plot. Happens during dry run
         # Select 3 random images from the validation set
-        for img, mask, pred in sample(self.val_outputs, min(3, len(self.val_outputs))):
+        for img, mask, pred in sample(
+                self.val_outputs, min(3, len(self.val_outputs))):
             self.plot_segmentation_map(img, mask, pred)
 
         # Reset the outputs
@@ -118,7 +125,7 @@ class UNetLightning(pl.LightningModule):
             An RGB image of shape [H, W, 3].
         """
         import numpy as np
-        
+
         # Ensure the mask is a numpy array
         mask = mask.squeeze().cpu().numpy()
         # Create an RGB image with the same height and width as the mask
@@ -131,7 +138,6 @@ class UNetLightning(pl.LightningModule):
         mask_rgb[mask == 2, :] = [0, 255, 0]  # Green for class 2
 
         return mask_rgb
-
 
     def plot_segmentation_map(self, image, mask, pred):
         import numpy as np
