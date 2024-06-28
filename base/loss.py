@@ -397,10 +397,6 @@ class DiceLoss(nn.Module):
         if target.dim() == 3: # [N, H, W]
             target = F.one_hot(target, num_classes).permute(0, 3, 1, 2).float()
 
-        # Print shapes for debugging
-        print(f"predict shape: {predict.shape}")
-        print(f"one-hot encoded target shape: {target.shape}")
-
         dice = BinaryDiceLoss(**self.kwargs)
         total_loss = 0
         predict = F.softmax(predict, dim=1)
