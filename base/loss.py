@@ -3,7 +3,7 @@ from torch import nn, Tensor
 import torch.nn.functional as F
 from typing import Type, Union, Callable
 import pytorch_lightning as pl
-from torchmetrics.classification import Dice
+from torchmetrics.functional.segmentation import generalized_dice_score
 
 """Common image segmentation losses.
 """
@@ -58,38 +58,26 @@ def ce_loss(true, logits, weights, ignore=255):
     return ce_loss
 
 
-def dice_loss(
-        true: torch.Tensor, logits: torch.Tensor, num_classes: int,
-        threshold=0.5, zero_division=0, average='micro', mdmc_average=None,
-        ignore_index=None, top_k=None, **kwargs):
-    """Computes the Dice loss using torchmetrics.Dice.
+def dice_loss(true: torch.Tensor, logits: torch.Tensor, num_classes: int, include_background=False, per_class=False, weight_type='square'):
+    """Computes the Generalized Dice loss using torchmetrics.functional.segmentation.generalized_dice_score.
 
     Args:
-        true: a tensor of shape [B, H, W] or [B, 1, H, W].
+        true: a tensor of shape [B, C, H, W] or [B, H, W].
         logits: a tensor of shape [B, C, H, W]. Corresponds to the raw output or logits of the model.
         num_classes: Number of classes.
-        threshold: Threshold for transforming probability or logit predictions to binary (0,1) predictions.
-        zero_division: The value to use for the score if denominator equals zero.
-        average: Defines the reduction that is applied. Options: ['micro', 'macro', 'weighted', 'none', 'samples'].
-        mdmc_average: Defines how averaging is done for multi-dimensional multi-class inputs.
-        ignore_index: Integer specifying a target class to ignore.
-        top_k: Number of the highest probability or logit score predictions considered.
+        include_background: Whether to include the background class in the computation.
+        per_class: Whether to compute the metric for each class separately.
+        weight_type: The type of weight to apply to each class. Options: ['square', 'simple', 'linear'].
 
     Returns:
-        dice_loss: The negated Dice coefficient as a loss.
+        generalized_dice_loss: The negated Generalized Dice Score as a loss.
     """
     device = true.device  # Ensure the device is the same
-
-    # Ensure true values are integers and of shape [B, H, W]
-    if true.dim() == 4 and true.shape[1] == 1:
-        true = true.squeeze(1)  # Squeeze only if there's a singleton dimension
+    
+    # Ensure true values are integers and squeeze any singleton channel dimension
     true = true.long()
-
-    # Initialize the Dice metric
-    dice_metric = Dice(
-        num_classes=num_classes, threshold=threshold,
-        zero_division=zero_division, average=average, mdmc_average=mdmc_average,
-        ignore_index=ignore_index, top_k=top_k).to(device)
+    if true.dim() == 4 and true.shape[1] == 1:
+        true = true.squeeze(1)  # Now true should be [B, H, W]
 
     # Apply the appropriate activation function to logits
     if num_classes > 1:
@@ -97,13 +85,20 @@ def dice_loss(
     else:
         probas = torch.sigmoid(logits)
 
-    # Compute the Dice coefficient
-    dice_coeff = dice_metric(probas, true)
+    # Ensure true tensor is of the same shape as probas
+    if true.dim() == 3:  # If true is [B, H, W], unsqueeze to [B, 1, H, W]
+        true = true.unsqueeze(1)
 
-    # Negate the Dice coefficient to convert it into a loss
-    dice_loss = 1 - dice_coeff
+    # Compute the Generalized Dice Score
+    gds = generalized_dice_score(probas, true, num_classes=num_classes, include_background=include_background, per_class=per_class, weight_type=weight_type)
+    
+    # Print Generalized Dice Score for debugging
+    print(f"Generalized Dice Score: {gds}")
 
-    return dice_loss
+    # Negate the Generalized Dice Score to convert it into a loss
+    generalized_dice_loss = 1 - gds
+    
+    return generalized_dice_loss
 
 
 def jaccard_loss(true, logits, eps=1e-7):

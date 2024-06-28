@@ -73,7 +73,7 @@ class UNetLightning(pl.LightningModule):
             loss = self.criterion(masks_pred, true_masks)
             loss += dice_loss(
                 F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2),
-                F.softmax(masks_pred, dim=1).float(),
+                masks_pred.float(),
                 multiclass=True
             )
             val_dice = -loss  # since dice_loss is negated
