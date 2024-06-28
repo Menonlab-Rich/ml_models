@@ -40,21 +40,18 @@ class UNetLightning(pl.LightningModule):
                                   foreach=True)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)
         return {'optimizer': optimizer, 'lr_scheduler':{ "scheduler": scheduler, 'monitor': 'val_dice'}}
+    
+    def calc_loss(self, masks_pred, masks_true):
+        if self.n_classes == 1:
+            masks_pred = masks_pred.squeeze(1)
+        criterion_loss = self.criterion(masks_pred, masks_true.float())
+        dice_loss = dice_loss(masks_true, masks_pred, self.n_classes)
+        return criterion_loss + dice_loss
 
     def training_step(self, batch, batch_idx):
         images, true_masks, _ = batch
         masks_pred = self(images)
-        
-        if self.model.n_classes == 1:
-            loss = self.criterion(masks_pred.squeeze(1), true_masks.float())
-            loss += dice_loss(true_masks.float(), masks_pred.squeeze(1))
-        else:
-            loss = self.criterion(masks_pred, true_masks)
-            loss += dice_loss(
-                F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2).float(),
-                F.softmax(masks_pred, dim=1).float(),
-                self.n_classes,
-            )
+        loss = self.calc_loss(masks_pred, true_masks)
         
         # Update and log the custom accuracy
         self.train_accuracy(masks_pred, true_masks)
@@ -65,19 +62,9 @@ class UNetLightning(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         images, true_masks, _ = batch
         masks_pred = self(images)
-
-        if self.model.n_classes == 1:
-            loss = self.criterion(masks_pred.squeeze(1), true_masks.float())
-            loss += dice_loss(true_masks, masks_pred.squeeze(1))
-            val_dice = -loss  # since dice_loss is negated
-        else:
-            loss = self.criterion(masks_pred, true_masks)
-            loss += dice_loss(
-                F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2),
-                masks_pred.float(),
-                self.n_classes,
-            )
-            val_dice = -loss  # since dice_loss is negated
+        loss = self.calc_loss(masks_pred, true_masks)
+        
+        val_dice = -loss  # since dice_loss is negated
         
         # Update and log the custom accuracy
         self.val_accuracy(masks_pred, true_masks)
@@ -89,17 +76,7 @@ class UNetLightning(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         images, true_masks, _ = batch
         masks_pred = self(images)
-
-        if self.model.n_classes == 1:
-            loss = self.criterion(masks_pred.squeeze(1), true_masks.float())
-            loss += dice_loss(true_masks, masks_pred.squeeze(1))
-        else:
-            loss = self.criterion(masks_pred, true_masks)
-            loss += dice_loss(
-                F.one_hot(true_masks, self.model.n_classes).permute(0, 3, 1, 2),
-                F.softmax(masks_pred, dim=1).float(),
-                self.n_classes,
-            )
+        loss = self.calc_loss(masks_pred, true_masks)
 
         self.log('test_loss', loss, on_epoch=True, prog_bar=True)
         return loss
