@@ -108,13 +108,28 @@ class UNetLightning(pl.LightningModule):
         self.model.use_checkpointing()
 
     def _mask_to_rgb(self, mask):
+        """
+        Convert a segmentation mask to an RGB image.
+
+        Args:
+            mask: A tensor of shape [H, W] with class indices.
+
+        Returns:
+            An RGB image of shape [H, W, 3].
+        """
         import numpy as np
+        # Ensure the mask is a numpy array
         mask = mask.squeeze().cpu().numpy()
-        mask_rgb = np.zeros((mask.shape[0], mask.shape[1], 3))
-        mask_rgb[mask == 1] = [1, 0, 0]
-        mask_rgb[mask == 2] = [0, 1, 0]
-        mask_rgb *= 255
-        return mask_rgb.astype(np.uint8)
+
+        # Create an RGB image with the same height and width as the mask
+        mask_rgb = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
+
+        # Assign colors to each class (you can modify the colors as needed)
+        mask_rgb[mask == 1] = [255, 0, 0]  # Red for class 1
+        mask_rgb[mask == 2] = [0, 255, 0]  # Green for class 2
+
+        return mask_rgb
+
 
     def plot_segmentation_map(self, image, mask, pred):
         import numpy as np
