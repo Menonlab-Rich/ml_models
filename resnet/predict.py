@@ -20,6 +20,11 @@ def load_model(model_path: str, image_paths: str):
     directories = [os.path.dirname(img_path) for img_path in image_paths]
     assert len(set(directories)) == 1, "All images must be in the same directory."
     directory = directories[0]
+    for img_path in image_paths:
+        if not os.path.exists(img_path):
+            directory = img_path
+            image_paths = None
+            break
     prediction_loader = InputLoader(directory=directory, files=image_paths)
     model = ResNet.load_from_checkpoint(model_path, encoder=None, strict=False)
     data_module = ResnetDataModule.load_from_checkpoint(

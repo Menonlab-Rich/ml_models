@@ -9,7 +9,7 @@ import torch
 import numpy as np
 from sklearn.decomposition import PCA
 
-CONFIG_FILE_PATH='config.yml'
+CONFIG_FILE_PATH=os_path.join(os_path.dirname(__file__), 'config.yml')
 
 # path custom tag handler
 

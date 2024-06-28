@@ -1,3 +1,2 @@
-D:\CZI_scope\code\preprocess\tifs\605-cflow_2024-05-06T07-46-13.03_0_page_57.tif
-D:\CZI_scope\code\preprocess\tifs\625-close-med_2024-05-21T13-14-53.762_7_page_440.tif
---model D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=04-val_accuracy=0.98.ckpt
+D:\CZI_scope\code\preprocess\superpixels\*.tif
+--model D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=00-val_accuracy=0.93.ckpt
