@@ -34,10 +34,17 @@ class ComposeTransforms:
     def __init__(self, *transforms):
         self.transforms = transforms
 
-    def __call__(self, **kwargs):
+    def __call__(self, image, mask):
         for transform in self.transforms:
-            image, mask = transform(**kwargs)
-        return image, mask
+            # recursively apply the transforms
+            res = transform(image=image, mask=mask)
+            if isinstance(res, tuple):
+                image, mask = res
+            else:
+                image = res['image']
+                mask = res['mask']
+            
+        return {'image': image, 'mask': mask}
 
 def get_train_transform():
     return {
