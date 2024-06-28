@@ -7,10 +7,8 @@ from os import environ
 
 def load_models(resnet_ckpt_path):
     from model import ResNet
-    input_loader = InputLoader(r"D:\CZI_scope\code\preprocess\superpixels")
-    target_loader = TargetLoader(r"D:\CZI_scope\code\preprocess\superpixels", config.classes)
     model = ResNet.load_from_checkpoint(resnet_ckpt_path, encoder=None, strict=False)
-    data_module = ResnetDataModule.load_from_checkpoint(resnet_ckpt_path, test_loaders=(input_loader, target_loader), n_workers=7)
+    data_module = ResnetDataModule.load_from_checkpoint(resnet_ckpt_path, test_loaders='validation')
     return model, data_module
 
 
@@ -24,7 +22,7 @@ def main(config: Config):
     tags=["training", "autoencoder", "resnet"],  # optional
 )
     
-    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=00-val_accuracy=0.93.ckpt"
+    resnet_ckpt_path = r"D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=04-val_accuracy=0.98.ckpt"
     model, data_module = load_models(resnet_ckpt_path)
     
     trainer_args = {
