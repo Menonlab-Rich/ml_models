@@ -22,6 +22,7 @@ def path(loader, node):
 # register the tag handlerpathjoin
 yaml.add_constructor('!path', path)
 
+
 def ToTensorLong(x: np.ndarray) -> torch.Tensor:
     '''
     Convert a number to a tensor of type long
@@ -29,29 +30,125 @@ def ToTensorLong(x: np.ndarray) -> torch.Tensor:
     x = np.array(x, dtype=np.uint8)
     return torch.tensor(x, dtype=torch.long)
 
+class ComposeTransforms:
+    def __init__(self, *transforms):
+        self.transforms = transforms
+
+    def __call__(self, **kwargs):
+        for transform in self.transforms:
+            image, mask = transform(**kwargs)
+        return image, mask
 
 def get_train_transform():
-    pca = PCA(n_components=3)
     return {
-        "input": A.Compose([
+        "input": ComposeTransforms(A.Compose([
             A.ToFloat(always_apply=True),
-            A.LongestMaxSize(max_size=512),
             ToTensorV2(),
-            
-        ]),
+        ]), SuperPixelTransform()),
         "target": ToTensorLong
     }
 
 
 def get_val_transform():
     return {
-        "input": A.Compose([
+        "input": ComposeTransforms(A.Compose([
             A.ToFloat(always_apply=True),
-            A.LongestMaxSize(max_size=512),
             ToTensorV2(),
-        ]),
+        ]), SuperPixelTransform()),
         "target": ToTensorLong
     }
+
+
+class SuperPixelTransform():
+    def __init__(self, n_segments=100):
+        self.n_segments = n_segments
+
+    def generate_superpixels(self, image):
+        from skimage.segmentation import slic
+        segments = slic(image, n_segments=self.n_segments)
+        return segments
+
+    def aggregate_superpixel_features(self, image, superpixels, p=4, r=20):
+        '''
+        Aggregate LBP features for each superpixel
+        Capture the texture information of each superpixel
+
+        Parameters
+        ---
+        image: np.ndarray
+            The image to extract features from
+        superpixels: np.ndarray
+            The superpixel segmentation of the image
+        p: int
+            Number of points in a circular neighborhood
+        r: int
+            Radius of the circle
+
+        Returns
+        ---
+        np.ndarray
+            The aggregated LBP features for each superpixel
+        '''
+        from skimage.feature import local_binary_pattern
+        lbp_img = local_binary_pattern(self.image, p, r)
+        n_bins = int(lbp_img.max() + 1)  # number of bins
+        features = np.zeros(
+            (image.shape[0],
+             image.shape[1],
+             n_bins),
+            dtype=np.float32)
+        for label in np.unique(superpixels):
+            mask = superpixels == label
+            lbp_hist = np.histogram(
+                lbp_img[mask],
+                bins=n_bins, range=(0, n_bins),
+                density=True)[0]
+            for i in range(n_bins):
+                features[mask, i] = lbp_hist[i]
+        return features
+
+    def aggregate_superpixel_labels(self, mask, superpixels):
+        """
+        Aggregate labels for each superpixel in the mask.
+
+        Parameters
+        ---
+        mask: np.ndarray
+            The original mask (target)
+        superpixels: np.ndarray
+            The superpixel segmentation of the mask
+
+        Returns
+        ---
+        np.ndarray
+            The aggregated labels for each superpixel
+        """
+        labels = np.zeros(mask.shape, dtype=np.int32)
+        for label in np.unique(superpixels):
+            mask_segment = superpixels == label
+            labels[mask_segment] = np.bincount(mask[mask_segment]).argmax()
+        return labels
+
+    def __call__(self, image, mask):
+        '''
+        Compute the superpixel features and labels for the given image and mask
+
+        Parameters
+        ---
+        image: np.ndarray
+            The input image
+        mask: np.ndarray
+            The target mask
+
+        Returns
+        ---
+        Tuple[np.ndarray, np.ndarray]
+            The superpixel features and labels
+        '''
+        superpixels = self.generate_superpixels(image)
+        features = self.aggregate_superpixel_features(image, superpixels)
+        sp_mask = self.aggregate_superpixel_labels(mask, superpixels)
+        return features, sp_mask
 
 
 class UnetTransformer(Transformer):
@@ -63,20 +160,25 @@ class UnetTransformer(Transformer):
 
     def apply_train(self, input=True, **kwargs):
         if input:
-            xformed = self.train_transform['input'](image=kwargs.get('image'), mask=kwargs.get('mask'))
+            xformed = self.train_transform['input'](
+                image=kwargs.get('image'),
+                mask=kwargs.get('mask'))
             return xformed['image'], xformed['mask']
         else:
             return self.train_transform['target'](kwargs.get('mask'))
 
     def apply_val(self, input=True, **kwargs):
         if input:
-            xformed = self.train_transform['input'](image=kwargs.get('image'), mask=kwargs.get('mask'))
+            xformed = self.train_transform['input'](
+                image=kwargs.get('image'),
+                mask=kwargs.get('mask'))
             return xformed['image'], xformed['mask']
         else:
             return self.train_transform['target'](kwargs.get('mask'))
 
     def __call__(self, inputs, targets) -> List[Type[torch.Tensor]]:
-        inputs, targets = self.apply_train(input=True, image=inputs, mask=targets)
+        inputs, targets = self.apply_train(
+            input=True, image=inputs, mask=targets)
         targets = self.apply_val(input=False, mask=targets)
         return inputs, targets
 
