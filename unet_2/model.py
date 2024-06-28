@@ -74,7 +74,7 @@ class UNetLightning(pl.LightningModule):
         self.val_loss_metric.update(loss)
         self.log('val_loss', self.val_loss_metric, on_epoch=True, prog_bar=True)
         self.log('val_dice', self.val_accuracy, on_epoch=True, prog_bar=True)
-        return {'loss': loss, 'accuracy': self.val_accuracy, 'img': images[0], 'mask': true_masks[0], 'pred': masks_pred[0]}
+        return {'loss': loss, 'accuracy': self.val_accuracy}
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
         self.val_outputs.append(
@@ -118,15 +118,17 @@ class UNetLightning(pl.LightningModule):
             An RGB image of shape [H, W, 3].
         """
         import numpy as np
+        
         # Ensure the mask is a numpy array
         mask = mask.squeeze().cpu().numpy()
-
         # Create an RGB image with the same height and width as the mask
         mask_rgb = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
-
+        # Check the number of classes in the mask
+        if mask.max() == 0:
+            return mask_rgb
         # Assign colors to each class (you can modify the colors as needed)
-        mask_rgb[mask == 1] = [255, 0, 0]  # Red for class 1
-        mask_rgb[mask == 2] = [0, 255, 0]  # Green for class 2
+        mask_rgb[mask == 1, :] = [255, 0, 0]  # Red for class 1
+        mask_rgb[mask == 2, :] = [0, 255, 0]  # Green for class 2
 
         return mask_rgb
 
