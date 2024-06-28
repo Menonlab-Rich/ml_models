@@ -45,8 +45,8 @@ class UNetLightning(pl.LightningModule):
         if self.n_classes == 1:
             masks_pred = masks_pred.squeeze(1)
         criterion_loss = self.criterion(masks_pred, masks_true)
-        dice_loss = dice_loss(masks_true, masks_pred, self.n_classes)
-        return criterion_loss + dice_loss
+        dloss = dice_loss(masks_true, masks_pred, self.n_classes)
+        return criterion_loss + dloss
 
     def training_step(self, batch, batch_idx):
         images, true_masks, _ = batch
