@@ -44,7 +44,7 @@ class UNetLightning(pl.LightningModule):
     def calc_loss(self, masks_pred, masks_true):
         if self.n_classes == 1:
             masks_pred = masks_pred.squeeze(1)
-        criterion_loss = self.criterion(masks_pred, masks_true.float())
+        criterion_loss = self.criterion(masks_pred, masks_true)
         dice_loss = dice_loss(masks_true, masks_pred, self.n_classes)
         return criterion_loss + dice_loss
 
