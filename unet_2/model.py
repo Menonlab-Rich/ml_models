@@ -77,19 +77,22 @@ class UNetLightning(pl.LightningModule):
         return {'loss': loss, 'accuracy': self.val_accuracy, 'img': images, 'mask': true_masks, 'pred': masks_pred}
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
-        self.val_outputs.append((outputs['img'], outputs['mask'], outputs['pred']))
+        self.val_outputs.append(
+            (outputs['img'],
+             outputs['mask'],
+             outputs['pred']))
 
     def on_validation_epoch_end(self, *args, **kwargs):
         from random import sample
         # Reset the metrics after each validation epoch
         self.val_accuracy.reset()
         self.val_loss_metric.reset()
-        if self.val_dataloader is None:
-            return
+        if len(self.val_outputs) == 0:
+            return  # No images to plot. Happens during dry run
         # Select 3 random images from the validation set
         for img, mask, pred in sample(self.val_outputs, 3):
             self.plot_segmentation_map(img, mask, pred)
-        
+
         # Reset the outputs
         self.val_outputs = []
 
