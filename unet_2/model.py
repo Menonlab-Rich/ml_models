@@ -47,7 +47,7 @@ class UNetLightning(pl.LightningModule):
         masks_true_one_hot = F.one_hot(
             masks_true, self.n_classes).permute(
             0, 3, 1, 2)
-        criterion_loss = self.criterion(masks_pred, masks_true_one_hot)
+        criterion_loss = self.criterion(masks_pred, masks_true)
         dloss = dice_loss(masks_true_one_hot, masks_pred, self.n_classes)
         return criterion_loss + dloss
 
