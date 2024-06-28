@@ -148,7 +148,7 @@ class SuperPixelTransform():
         superpixels = self.generate_superpixels(image)
         features = self.aggregate_superpixel_features(image, superpixels)
         sp_mask = self.aggregate_superpixel_labels(mask, superpixels)
-        return features, sp_mask
+        return {'image': features, 'mask': sp_mask}
 
 
 class UnetTransformer(Transformer):
