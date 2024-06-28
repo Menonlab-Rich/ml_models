@@ -74,7 +74,7 @@ class UNetLightning(pl.LightningModule):
         self.val_loss_metric.update(loss)
         self.log('val_loss', self.val_loss_metric, on_epoch=True, prog_bar=True)
         self.log('val_dice', self.val_accuracy, on_epoch=True, prog_bar=True)
-        return {'loss': loss, 'accuracy': self.val_accuracy, 'img': images, 'mask': true_masks, 'pred': masks_pred}
+        return {'loss': loss, 'accuracy': self.val_accuracy, 'img': images[0], 'mask': true_masks[0], 'pred': masks_pred[0]}
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
         self.val_outputs.append(
