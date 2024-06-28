@@ -90,7 +90,7 @@ class UNetLightning(pl.LightningModule):
         if len(self.val_outputs) == 0:
             return  # No images to plot. Happens during dry run
         # Select 3 random images from the validation set
-        for img, mask, pred in sample(self.val_outputs, 3):
+        for img, mask, pred in sample(self.val_outputs, min(3, len(self.val_outputs))):
             self.plot_segmentation_map(img, mask, pred)
 
         # Reset the outputs
