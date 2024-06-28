@@ -17,7 +17,7 @@ from neptune.types import File
 class UNetLightning(pl.LightningModule):
     def __init__(self, n_channels, n_classes, bilinear=False, learning_rate=1e-5, weight_decay=1e-8, momentum=0.999, amp=False):
         super(UNetLightning, self).__init__()
-        self.model = UNet(n_channels, n_classes, bilinear, use_checkpointing=True)
+        self.model = UNet(n_channels, n_classes, bilinear)
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.momentum = momentum
@@ -28,6 +28,7 @@ class UNetLightning(pl.LightningModule):
         self.val_accuracy = GeneralizedDiceScore(self.n_classes, include_background=False)
         self.train_loss_metric = MeanMetric()
         self.val_loss_metric = MeanMetric()
+        self.use_checkpointing()
 
     def forward(self, x):
         return self.model(x)
