@@ -10,7 +10,7 @@ from torch import optim, nn
 from pytorch_model import UNet
 from base.loss import DiceLoss
 from base.metrics import GeneralizedDiceScore
-from torchmetrics.functional.segmentation import GeneralizedDiceScore
+from torchmetrics.segmentation import GeneralizedDiceScore
 from torchmetrics import MeanMetric
 from neptune.types import File
 
