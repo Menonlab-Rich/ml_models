@@ -28,7 +28,6 @@ class UNetLightning(pl.LightningModule):
         self.val_accuracy = GeneralizedDiceScore(self.n_classes, include_background=False)
         self.train_loss_metric = MeanMetric()
         self.val_loss_metric = MeanMetric()
-        self.use_checkpointing()
 
     def forward(self, x):
         return self.model(x)
