@@ -70,7 +70,7 @@ class UNetLightning(pl.LightningModule):
         self.log('val_dice', self.val_accuracy, on_epoch=True, prog_bar=True)
         return {'val_loss': loss, 'val_dice': self.val_accuracy}
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         from random import sample
         # Reset the metrics after each validation epoch
         self.val_accuracy.reset()
