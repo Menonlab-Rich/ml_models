@@ -30,6 +30,7 @@ def ToTensorLong(x: np.ndarray) -> torch.Tensor:
     x = np.array(x, dtype=np.uint8)
     return torch.tensor(x, dtype=torch.long)
 
+
 class ComposeTransforms:
     def __init__(self, *transforms):
         self.transforms = transforms
@@ -43,25 +44,28 @@ class ComposeTransforms:
             else:
                 image = res['image']
                 mask = res['mask']
-            
+
         return {'image': image, 'mask': mask}
+
 
 def get_train_transform():
     return {
-        "input": ComposeTransforms(A.Compose([
-            A.ToFloat(always_apply=True),
-            ToTensorV2(),
-        ]), SuperPixelTransform()),
+        "input": ComposeTransforms(SuperPixelTransform(),
+                                   A.Compose([
+                                       A.ToFloat(always_apply=True),
+                                       ToTensorV2(),
+                                   ])),
         "target": ToTensorLong
     }
 
 
 def get_val_transform():
     return {
-        "input": ComposeTransforms(A.Compose([
-            A.ToFloat(always_apply=True),
-            ToTensorV2(),
-        ]), SuperPixelTransform()),
+        "input": ComposeTransforms(SuperPixelTransform(),
+                                   A.Compose([
+                                       A.ToFloat(always_apply=True),
+                                       ToTensorV2(),
+                                   ])),
         "target": ToTensorLong
     }
 
