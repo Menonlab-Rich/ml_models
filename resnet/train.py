@@ -65,7 +65,7 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         monitor='val_accuracy',
         dirpath='checkpoints',
         filename='resnet-{epoch:02d}-{val_accuracy:.2f}',
-        save_top_k=3,
+        save_top_k=1,
         mode='max',
         verbose=True
     )

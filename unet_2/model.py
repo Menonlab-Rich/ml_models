@@ -62,7 +62,7 @@ class UNetLightning(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        images, true_masks = batch
+        images, true_masks, _ = batch
         masks_pred = self(images)
 
         if self.model.n_classes == 1:
@@ -86,7 +86,7 @@ class UNetLightning(pl.LightningModule):
         return {'val_loss': loss, 'val_dice': val_dice}
 
     def test_step(self, batch, batch_idx):
-        images, true_masks = batch
+        images, true_masks, _ = batch
         masks_pred = self(images)
 
         if self.model.n_classes == 1:
