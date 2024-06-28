@@ -65,7 +65,7 @@ class SuperPixelTransform():
 
     def generate_superpixels(self, image):
         from skimage.segmentation import slic
-        segments = slic(image, n_segments=self.n_segments, multichannel=False)
+        segments = slic(image, n_segments=self.n_segments, channel_axis=None)
         return segments
 
     def aggregate_superpixel_features(self, image, superpixels, p=4, r=20):
