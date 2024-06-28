@@ -70,16 +70,12 @@ def get_val_transform():
     }
 
 
-import cupy as cp
-import numpy as np
-from cucim.skimage.feature import local_binary_pattern
-from cucim.skimage.segmentation import slic
-
 class SuperPixelTransform():
     def __init__(self, n_segments=100):
         self.n_segments = n_segments
 
     def generate_superpixels(self, image):
+        from skimage.segmentation import slic
         segments = slic(image, n_segments=self.n_segments, channel_axis=None)
         return segments
 
@@ -90,9 +86,9 @@ class SuperPixelTransform():
 
         Parameters
         ---
-        image: cp.ndarray
+        image: np.ndarray
             The image to extract features from
-        superpixels: cp.ndarray
+        superpixels: np.ndarray
             The superpixel segmentation of the image
         p: int
             Number of points in a circular neighborhood
@@ -101,65 +97,69 @@ class SuperPixelTransform():
 
         Returns
         ---
-        cp.ndarray
+        np.ndarray
             The aggregated LBP features for each superpixel
         '''
+        from skimage.feature import local_binary_pattern
         lbp_img = local_binary_pattern(image, p, r)
         n_bins = int(lbp_img.max() + 1)  # number of bins
-        features = cp.zeros((image.shape[0], image.shape[1], n_bins), dtype=cp.float32)
-        
-        for label in cp.unique(superpixels):
+        features = np.zeros(
+            (image.shape[0],
+             image.shape[1],
+             n_bins),
+            dtype=np.float32)
+        for label in np.unique(superpixels):
             mask = superpixels == label
-            lbp_hist = cp.histogram(lbp_img[mask], bins=n_bins, range=(0, n_bins), density=True)[0]
+            lbp_hist = np.histogram(
+                lbp_img[mask],
+                bins=n_bins, range=(0, n_bins),
+                density=True)[0]
             for i in range(n_bins):
                 features[mask, i] = lbp_hist[i]
-        
         return features
 
-    def process_batch(self, images):
-        '''
-        Process a batch of images to generate superpixels and aggregate features.
+    def aggregate_superpixel_labels(self, mask, superpixels):
+        """
+        Aggregate labels for each superpixel in the mask.
 
         Parameters
         ---
-        images: List[np.ndarray]
-            List of images to process.
+        mask: np.ndarray
+            The original mask (target)
+        superpixels: np.ndarray
+            The superpixel segmentation of the mask
 
         Returns
         ---
-        List[cp.ndarray]
-            List of aggregated superpixel features for each image.
+        np.ndarray
+            The aggregated labels for each superpixel
+        """
+        labels = np.zeros(mask.shape, dtype=np.int32)
+        for label in np.unique(superpixels):
+            mask_segment = superpixels == label
+            labels[mask_segment] = np.bincount(mask[mask_segment]).argmax()
+        return labels
+
+    def __call__(self, image, mask):
         '''
-        batch_features = []
-        
-        for image in images:
-            image_gpu = cp.asarray(image)  # Transfer image to GPU
-            superpixels = self.generate_superpixels(image_gpu)
-            features = self.aggregate_superpixel_features(image_gpu, superpixels)
-            batch_features.append(features)
-        
-        return batch_features
+        Compute the superpixel features and labels for the given image and mask
 
-# Example usage
-if __name__ == "__main__":
-    import cv2  # Optional: for image loading
+        Parameters
+        ---
+        image: np.ndarray
+            The input image
+        mask: np.ndarray
+            The target mask
 
-    # Load images (example with two grayscale images)
-    image1 = cv2.imread('path_to_image1', cv2.IMREAD_GRAYSCALE)
-    image2 = cv2.imread('path_to_image2', cv2.IMREAD_GRAYSCALE)
-
-    # Initialize the transform
-    transform = SuperPixelTransform(n_segments=100)
-
-    # Process a batch of images
-    images = [image1, image2]
-    batch_features = transform.process_batch(images)
-
-    # Convert results back to CPU and print the shapes
-    for features in batch_features:
-        features_cpu = cp.asnumpy(features)
-        print(features_cpu.shape)
-
+        Returns
+        ---
+        Tuple[np.ndarray, np.ndarray]
+            The superpixel features and labels
+        '''
+        superpixels = self.generate_superpixels(image)
+        features = self.aggregate_superpixel_features(image, superpixels)
+        sp_mask = self.aggregate_superpixel_labels(mask, superpixels)
+        return {'image': features, 'mask': sp_mask}
 
 
 class UnetTransformer(Transformer):
