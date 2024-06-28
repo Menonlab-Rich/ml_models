@@ -90,7 +90,7 @@ class SuperPixelTransform():
             The aggregated LBP features for each superpixel
         '''
         from skimage.feature import local_binary_pattern
-        lbp_img = local_binary_pattern(self.image, p, r)
+        lbp_img = local_binary_pattern(image, p, r)
         n_bins = int(lbp_img.max() + 1)  # number of bins
         features = np.zeros(
             (image.shape[0],
