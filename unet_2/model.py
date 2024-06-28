@@ -114,7 +114,7 @@ class UNetLightning(pl.LightningModule):
         mask_rgb[mask == 1] = [1, 0, 0]
         mask_rgb[mask == 2] = [0, 1, 0]
         mask_rgb *= 255
-        return mask_rgb.as_type(np.uint8)
+        return mask_rgb.astype(np.uint8)
 
     def plot_segmentation_map(self, image, mask, pred):
         import numpy as np
