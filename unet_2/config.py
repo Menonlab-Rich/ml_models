@@ -75,7 +75,7 @@ class SuperPixelTransform():
         self.n_segments = n_segments
         self.p = p
         self.r = r
-        self.bins = bins # default is 32 because testing showed that the median number is between 20 and 30
+        self.n_bins = bins # default is 32 because testing showed that the median number is between 20 and 30
 
     def generate_superpixels(self, image):
         from skimage.segmentation import slic
