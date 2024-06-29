@@ -76,7 +76,6 @@ class SuperPixelTransform():
         self.p = p
         self.r = r
         self.bins = bins
-
     def generate_superpixels(self, image):
         from skimage.segmentation import slic
         segments = slic(image, n_segments=self.n_segments, channel_axis=None)
@@ -104,8 +103,7 @@ class SuperPixelTransform():
             The aggregated LBP features for each superpixel
         '''
         from skimage.feature import local_binary_pattern
-        lbp_img = local_binary_pattern(
-            image, self.p, self.r, n_bins=self.bins, method='uniform')
+        lbp_img = local_binary_pattern(image, self.p, self.r)
         n_bins = int(lbp_img.max() + 1)  # number of bins
         features = np.zeros(
             (image.shape[0],
