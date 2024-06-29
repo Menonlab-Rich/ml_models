@@ -75,72 +75,33 @@ class SuperPixelTransform():
         self.n_segments = n_segments
         self.p = p
         self.r = r
-        self.bins = bins
+        self.bins = bins # default is 32 because testing showed that the median number is between 20 and 30
+
     def generate_superpixels(self, image):
         from skimage.segmentation import slic
         segments = slic(image, n_segments=self.n_segments, channel_axis=None)
         return segments
 
     def aggregate_superpixel_features(self, image, superpixels):
-        '''
-        Aggregate LBP features for each superpixel
-        Capture the texture information of each superpixel
-
-        Parameters
-        ---
-        image: np.ndarray
-            The image to extract features from
-        superpixels: np.ndarray
-            The superpixel segmentation of the image
-        p: int
-            Number of points in a circular neighborhood
-        r: int
-            Radius of the circle
-
-        Returns
-        ---
-        np.ndarray
-            The aggregated LBP features for each superpixel
-        '''
         from skimage.feature import local_binary_pattern
         lbp_img = local_binary_pattern(image, self.p, self.r)
-        n_bins = int(lbp_img.max() + 1)  # number of bins
+        n_bins = self.n_bins
         features = np.zeros(
             (image.shape[0],
              image.shape[1],
              n_bins),
             dtype=np.float32)
+
         for label in np.unique(superpixels):
             mask = superpixels == label
-            lbp_hist = np.histogram(
+            lbp_hist, _ = np.histogram(
                 lbp_img[mask],
                 bins=n_bins, range=(0, n_bins),
-                density=True)[0]
+                density=True)
             for i in range(n_bins):
                 features[mask, i] = lbp_hist[i]
+
         return features
-
-    def aggregate_superpixel_labels(self, mask, superpixels):
-        """
-        Aggregate labels for each superpixel in the mask.
-
-        Parameters
-        ---
-        mask: np.ndarray
-            The original mask (target)
-        superpixels: np.ndarray
-            The superpixel segmentation of the mask
-
-        Returns
-        ---
-        np.ndarray
-            The aggregated labels for each superpixel
-        """
-        labels = np.zeros(mask.shape, dtype=np.int32)
-        for label in np.unique(superpixels):
-            mask_segment = superpixels == label
-            labels[mask_segment] = np.bincount(mask[mask_segment]).argmax()
-        return labels
 
     def __call__(self, image, mask):
         '''
@@ -160,8 +121,8 @@ class SuperPixelTransform():
         '''
         superpixels = self.generate_superpixels(image)
         features = self.aggregate_superpixel_features(image, superpixels)
-        sp_mask = self.aggregate_superpixel_labels(mask, superpixels)
-        return {'image': features, 'mask': sp_mask}
+        # return the superpixel features and the mask
+        return {'image': features, 'mask': mask}
 
 
 class UnetTransformer(Transformer):
