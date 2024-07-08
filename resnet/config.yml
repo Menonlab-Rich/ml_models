@@ -1,12 +1,12 @@
 # define the root directory that all other paths are relative to
 root_dir: &root_dir ../../data/transfer
 data_dir: !path [*root_dir, "preprocess", "superpixels"]
-test_dir: !path [*root_dir, "preprocess", "superpixels"]
-out_dir: !path [*root_dir, "output"]
+test_dir: !path [*root_dir, "preprocess", "validation"]
+out_dir: !path [*root_dir, "checkpoints"]
 input_channels: 1
 learning_rate: 0.7e-4
 batch_size: 32 
-epochs: 5
+epochs: 9
 device: cuda # Example: 'cpu' or 'cuda'
 
 classes: 

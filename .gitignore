@@ -9,3 +9,4 @@ results/
 slurm-*
 *.ckpt
 test_data/
+.neptune
