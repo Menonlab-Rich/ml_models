@@ -199,5 +199,12 @@ class UNetLightning(pl.LightningModule):
         legend = [plt.Line2D([0], [0], color='red', lw=4, label='625'),
                   plt.Line2D([0], [0], color='green', lw=4, label='605')]
 
+        fig.legend(handles=legend, loc='center', ncol=2)
         plt.tight_layout()
+        
         self.logger.experiment['Segmentation Map'].log(File.as_image(fig))
+        # Save the raw tensors to Neptune for debugging
+        self.logger.experiment['Raw Input'].log(File.as_image(image))
+        self.lgger.experiment['Raw Mask'].log(File.as_image(mask))
+        self.logger.experiment['Raw Prediction'].log(File.as_image(pred))
+        
