@@ -84,8 +84,8 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         "max_epochs": config.epochs,
         "precision": config.precision,
         "accelerator": config.accelerator,
-        "accumulate_grad_batches": 10,
-        "callbacks": [checkpoint_cb, swa]
+        "callbacks": [checkpoint_cb, swa],
+        "gradient_clip_val": 1.0,
     }
 
     if debug:

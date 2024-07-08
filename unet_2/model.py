@@ -13,11 +13,12 @@ from base.loss import DiceLoss
 from base.metrics import GeneralizedDiceScore
 from torchmetrics import MeanMetric
 from neptune.types import File
+from warnings import warn
 
 
 class UNetLightning(pl.LightningModule):
     def __init__(self, n_channels, n_classes, bilinear=False,
-                 learning_rate=1e-5, weight_decay=1e-8, momentum=0.999,
+                 learning_rate=1e-5, weight_decay=1e-9, momentum=0.8,
                  amp=False):
         super(UNetLightning, self).__init__()
         self.model = UNet(n_channels, n_classes, bilinear)
@@ -69,7 +70,14 @@ class UNetLightning(pl.LightningModule):
         images, true_masks, _ = batch
         masks_pred = self(images)
         loss = self.calc_loss(masks_pred, true_masks)
-
+        if torch.isnan(masks_pred).any():
+            warn("mas predictions have nan values")
+        if torch.isnan(true_masks).any():
+            warn("true masks have nan values")
+        if torch.isinf(masks_pred).any():
+            warn("mask predictions have inf values")
+        if torch.isinf(true_masks).any():
+            warn("true masks have inf values")
         # Update and log the custom accuracy
         self.val_accuracy.update(masks_pred, true_masks)
         self.val_loss_metric.update(loss)

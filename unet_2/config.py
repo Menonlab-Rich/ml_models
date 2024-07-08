@@ -50,9 +50,10 @@ class ComposeTransforms:
 
 def get_train_transform():
     return {
-        "input": ComposeTransforms(SuperPixelTransform(),
+        "input": ComposeTransforms(
                                    A.Compose([
                                        A.ToFloat(always_apply=True),
+                                       A.LongestMaxSize(512),
                                        ToTensorV2(),
                                    ])),
         "target": ToTensorLong
