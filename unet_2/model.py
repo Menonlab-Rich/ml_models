@@ -90,9 +90,9 @@ class UNetLightning(pl.LightningModule):
         return {
             'loss': loss,
             'accuracy': self.val_accuracy,
-            'img': images[0],
-            'mask': true_masks[0],
-            'pred': masks_pred[0]
+            'img': images,
+            'mask': true_masks,
+            'pred': masks_pred,
         }
 
     def on_train_epoch_start(self) -> None:
@@ -114,14 +114,29 @@ class UNetLightning(pl.LightningModule):
 
     def on_validation_epoch_end(self, *args, **kwargs):
         from random import sample
+
         # Reset the metrics after each validation epoch
         self.val_accuracy.reset()
         self.val_loss_metric.reset()
+
         if len(self.val_outputs) == 0:
             return  # No images to plot. Happens during dry run
-        # Select 3 random images from the validation set
-        for img, mask, pred in sample(
-                self.val_outputs, min(3, len(self.val_outputs))):
+
+        # Separate the validation outputs based on the ground truth mask values
+        mask_value_1 = [output for output in self.val_outputs
+                        if (output[1] == 1).any()]
+        mask_value_2 = [output for output in self.val_outputs
+                        if (output[1] == 2).any()]
+
+        # Select 1 random image from each category
+        selected_outputs = []
+        if mask_value_1:
+            selected_outputs.append(sample(mask_value_1, 1)[0])
+        if mask_value_2:
+            selected_outputs.append(sample(mask_value_2, 1)[0])
+
+        # Plot the selected images
+        for img, mask, pred in selected_outputs:
             self.plot_segmentation_map(img, mask, pred)
 
         # Reset the outputs
@@ -184,5 +199,12 @@ class UNetLightning(pl.LightningModule):
         legend = [plt.Line2D([0], [0], color='red', lw=4, label='625'),
                   plt.Line2D([0], [0], color='green', lw=4, label='605')]
 
+        fig.legend(handles=legend, loc='center', ncol=2)
         plt.tight_layout()
+        
         self.logger.experiment['Segmentation Map'].log(File.as_image(fig))
+        # Save the raw tensors to Neptune for debugging
+        self.logger.experiment['Raw Input'].log(File.as_image(image))
+        self.lgger.experiment['Raw Mask'].log(File.as_image(mask))
+        self.logger.experiment['Raw Prediction'].log(File.as_image(pred))
+        
