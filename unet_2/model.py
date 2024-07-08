@@ -105,8 +105,8 @@ class UNetLightning(pl.LightningModule):
             self.automatic_optimization = False
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
-        pred = F.softmax(outputs['pred'], dim=1)
-        pred = torch.argmax(pred, dim=1)
+        pred = F.softmax(outputs['pred'], None)
+        pred = torch.argmax(pred, dim=0)
         self.val_outputs.append(
             (outputs['img'],
              outputs['mask'],

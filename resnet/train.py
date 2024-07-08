@@ -17,20 +17,21 @@ def manual_validation(input, target, model, _loss, img_name):
     import numpy as np
     import torch
     from torch.nn import BCEWithLogitsLoss
-    
+
     config = Config(CONFIG_FILE_PATH)
-    
+
     img_path = path.join(config.data_dir, img_name)
     img = np.array(Image.open(img_path))
     img = config.transform.apply_train(img)
     img = img.unsqueeze(0)
-    
+
     expected_target = 0 if img_name[:3] == "605" else 1
-    expected_target = config.transform.apply_train(expected_target, input=False).unsqueeze(0)
-    
+    expected_target = config.transform.apply_train(
+        expected_target, input=False).unsqueeze(0)
+
     assert target == expected_target, f"Target mismatch: {target} != {expected_target}"
     assert torch.allclose(input, img), f"Input mismatch: {input} != {img}"
-    
+
     loss_fn = BCEWithLogitsLoss()
     pred = model(input)
     loss = loss_fn(pred, target)
@@ -39,8 +40,6 @@ def manual_validation(input, target, model, _loss, img_name):
     loss = loss_fn(pred, expected_target)
     assert loss == _loss, f"Loss mismatch: {loss} != {_loss}"
     return loss
-    
-
 
 
 def main(config: Config, debug: bool = False, manual: bool = False):
@@ -55,16 +54,21 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         n_workers=1 if debug else 4
     )
 
+    # Initialize the Neptune logger
     logger = NeptuneLogger(
         api_key=os.environ.get("NEPTUNE_API_TOKEN"),
         project="richbai90/Resnet",
         tags=["training", "autoencoder", "resnet"]
     )
 
+    # Extract the run ID from the logger
+    run_id = logger.experiment["sys/id"].fetch()
+
+    # Define the ModelCheckpoint callback
     checkpoint_cb = ModelCheckpoint(
         monitor='val_accuracy',
-        dirpath='checkpoints',
-        filename='resnet-{epoch:02d}-{val_accuracy:.2f}',
+        dirpath=config.out_dir,
+        filename=f'resnet-{run_id}-{{epoch:02d}}-{{val_accuracy:.2f}}',
         save_top_k=1,
         mode='max',
         verbose=True
@@ -111,7 +115,9 @@ def main(config: Config, debug: bool = False, manual: bool = False):
                 scaler.step(optimizer)
                 scaler.update()
                 logger.log_metrics({"train_loss": loss.item()}, step=i)
-                manual_validation(model=model, input=img, target=target, _loss=loss, img_name=_[0][0])
+                manual_validation(
+                    model=model, input=img, target=target, _loss=loss,
+                    img_name=_[0][0])
             model.eval()
             for i, (img, target, _) in enumerate(data_module.val_dataloader()):
                 with torch.cuda.amp.autocast():

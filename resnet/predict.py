@@ -26,7 +26,7 @@ def load_model(model_path: str, image_paths: str):
             image_paths = None
             break
     prediction_loader = InputLoader(directory=directory, files=image_paths)
-    model = ResNet.load_from_checkpoint(model_path, encoder=None, strict=False)
+    model = ResNet.load_from_checkpoint(model_path, encoder=None, strict=False, batch_size=16)
     data_module = ResnetDataModule.load_from_checkpoint(
         model_path, input_loader=MockDataLoader([]),
         target_loader=MockDataLoader([]),
