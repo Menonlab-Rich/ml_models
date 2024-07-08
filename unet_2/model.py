@@ -81,8 +81,12 @@ class UNetLightning(pl.LightningModule):
         # Update and log the custom accuracy
         self.val_accuracy.update(masks_pred, true_masks)
         self.val_loss_metric.update(loss)
-        self.log('val_loss', self.val_loss_metric.compute(), on_epoch=True, prog_bar=True)
-        self.log('val_dice', self.val_accuracy.compute(), on_epoch=True, prog_bar=True)
+        self.log(
+            'val_loss', self.val_loss_metric.compute(),
+            on_epoch=True, prog_bar=True)
+        self.log(
+            'val_dice', self.val_accuracy.compute(),
+            on_epoch=True, prog_bar=True)
         return {
             'loss': loss,
             'accuracy': self.val_accuracy,
@@ -90,6 +94,15 @@ class UNetLightning(pl.LightningModule):
             'mask': true_masks[0],
             'pred': masks_pred[0]
         }
+
+    def on_train_epoch_start(self) -> None:
+        # See https://github.com/Lightning-AI/pytorch-lightning/issues/17245
+        if self.current_epoch == self.trainer.max_epochs - 1:
+            # Workaround to always save the last epoch until the bug is fixed in lightning (https://github.com/Lightning-AI/lightning/issues/4539)
+            self.trainer.check_val_every_n_epoch = 1
+
+            # Disable backward pass for SWA until the bug is fixed in lightning (https://github.com/Lightning-AI/lightning/issues/17245)
+            self.automatic_optimization = False
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
         pred = F.softmax(outputs['pred'], dim=1)
