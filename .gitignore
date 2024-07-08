@@ -8,4 +8,5 @@ results/
 *.slurm
 slurm-*
 *.ckpt
-test_data/
+test_*/
+examples/

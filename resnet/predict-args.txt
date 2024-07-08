@@ -1,2 +1,2 @@
-D:\CZI_scope\code\preprocess\superpixels\*.tif
---model D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=00-val_accuracy=0.93.ckpt
+D:\CZI_scope\code\preprocess\cropped\605_fullfov_2024-06-17T13-03-32.288_7_page_100.tif
+--model D:\CZI_scope\code\ml_models\resnet\checkpoints\resnet-epoch=03-val_accuracy=0.97.ckpt

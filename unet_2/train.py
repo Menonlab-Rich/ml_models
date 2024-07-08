@@ -62,10 +62,12 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         tags=["training", "segmentation", "unet"]
     )
 
+    run_id = logger.experiment["sys/id"].fetch()
+
     checkpoint_cb = ModelCheckpoint(
         monitor='val_dice',
         dirpath='checkpoints',
-        filename='unet-{epoch:02d}-{val_dice:.2f}',
+        filename=f'unet-{run_id}-{{epoch:02d}}-{{val_dice:.2f}}',
         save_top_k=3,
         mode='max',
         verbose=True
