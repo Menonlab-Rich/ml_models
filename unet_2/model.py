@@ -105,8 +105,8 @@ class UNetLightning(pl.LightningModule):
             self.automatic_optimization = False
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
-        pred = F.softmax(outputs['pred'], None)
-        pred = torch.argmax(pred, dim=0)
+        pred = F.softmax(outputs['pred'], dim=1)
+        pred = torch.argmax(pred, dim=1)
         self.val_outputs.append(
             (outputs['img'],
              outputs['mask'],
@@ -127,7 +127,8 @@ class UNetLightning(pl.LightningModule):
                         if (output[1] == 1).any()]
         mask_value_2 = [output for output in self.val_outputs
                         if (output[1] == 2).any()]
-
+        self.log('mask_value_1_length', len(mask_value_1), on_epoch=True)
+        self.log('mask_value_2_length', len(mask_value_2), on_epoch=True)
         # Select 1 random image from each category
         selected_outputs = []
         if mask_value_1:
@@ -137,7 +138,10 @@ class UNetLightning(pl.LightningModule):
 
         # Plot the selected images
         for img, mask, pred in selected_outputs:
-            self.plot_segmentation_map(img, mask, pred)
+            _img = img[0].unsqueeze(0)
+            _mask = mask[0].unsqueeze(0)
+            _pred = pred[0].unsqueeze(0)
+            self.plot_segmentation_map(_img, _mask, _pred)
 
         # Reset the outputs
         self.val_outputs = []
@@ -165,8 +169,6 @@ class UNetLightning(pl.LightningModule):
         """
         import numpy as np
 
-        # Ensure the mask is a numpy array
-        mask = mask.squeeze().cpu().numpy()
         # Create an RGB image with the same height and width as the mask
         mask_rgb = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
         # Check the number of classes in the mask
@@ -181,8 +183,11 @@ class UNetLightning(pl.LightningModule):
     def plot_segmentation_map(self, image, mask, pred):
         import numpy as np
         import matplotlib.pyplot as plt
+        image = image.squeeze().cpu().numpy()
+        mask = mask.squeeze().cpu().numpy()
+        pred = pred.squeeze().cpu().numpy()
         fig, ax = plt.subplots(1, 3, figsize=(15, 5))
-        ax[0].imshow(image.squeeze().cpu().numpy(), cmap='gray')
+        ax[0].imshow(image.squeeze(), cmap='gray')
         ax[0].set_title('Image')
         ax[1].imshow(self._mask_to_rgb(mask))
         ax[1].set_title('Ground Truth')
@@ -205,6 +210,6 @@ class UNetLightning(pl.LightningModule):
         self.logger.experiment['Segmentation Map'].log(File.as_image(fig))
         # Save the raw tensors to Neptune for debugging
         self.logger.experiment['Raw Input'].log(File.as_image(image))
-        self.lgger.experiment['Raw Mask'].log(File.as_image(mask))
+        self.logger.experiment['Raw Mask'].log(File.as_image(mask))
         self.logger.experiment['Raw Prediction'].log(File.as_image(pred))
         

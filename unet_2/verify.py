@@ -18,4 +18,9 @@ def check_npz_files(directory):
     print(f'twos: {twos}')
 
 # Example usage
-check_npz_files('path_to_your_mask_directory')
+if __name__ == '__main__':
+    from argparse import ArgumentParser
+    parser = ArgumentParser(description="validation script")
+    parser.add_argument("path")
+    args = parser.parse_args()
+    check_npz_files(args.path)
