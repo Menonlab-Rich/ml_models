@@ -151,8 +151,66 @@ class UNetLightning(pl.LightningModule):
         masks_pred = self(images)
         loss = self.calc_loss(masks_pred, true_masks)
 
-        self.log('test_loss', loss, on_epoch=True, prog_bar=True)
-        return loss
+        if torch.isnan(masks_pred).any():
+            warn("mask predictions have nan values")
+        if torch.isnan(true_masks).any():
+            warn("true masks have nan values")
+        if torch.isinf(masks_pred).any():
+            warn("mask predictions have inf values")
+        if torch.isinf(true_masks).any():
+            warn("true masks have inf values")
+
+        # Update and log the custom accuracy
+        self.val_accuracy.update(masks_pred, true_masks)
+        self.val_loss_metric.update(loss)
+        self.log(
+            'test_loss', self.val_loss_metric.compute(),
+            on_epoch=True, prog_bar=True)
+        self.log(
+            'test_dice', self.val_accuracy.compute(),
+            on_epoch=True, prog_bar=True)
+
+        return {
+            'loss': loss,
+            'accuracy': self.val_accuracy,
+            'img': images,
+            'mask': true_masks,
+            'pred': masks_pred,
+        }
+
+    def on_test_epoch_end(self, *args, **kwargs):
+        from random import sample
+
+        # Reset the metrics after each test epoch
+        self.val_accuracy.reset()
+        self.val_loss_metric.reset()
+
+        if len(self.val_outputs) == 0:
+            return  # No images to plot. Happens during dry run
+
+        # Separate the test outputs based on the ground truth mask values
+        mask_value_1 = [output for output in self.val_outputs
+                        if (output[1] == 1).any()]
+        mask_value_2 = [output for output in self.val_outputs
+                        if (output[1] == 2).any()]
+        self.log('test_mask_value_1_length', len(mask_value_1), on_epoch=True)
+        self.log('test_mask_value_2_length', len(mask_value_2), on_epoch=True)
+        # Select 1 random image from each category
+        selected_outputs = []
+        if mask_value_1:
+            selected_outputs.append(sample(mask_value_1, 1)[0])
+        if mask_value_2:
+            selected_outputs.append(sample(mask_value_2, 1)[0])
+
+        # Plot the selected images
+        for img, mask, pred in selected_outputs:
+            _img = img[0].unsqueeze(0)
+            _mask = mask[0].unsqueeze(0)
+            _pred = pred[0].unsqueeze(0)
+            self.plot_segmentation_map(_img, _mask, _pred)
+
+        # Reset the outputs
+        self.val_outputs = []
 
     def use_checkpointing(self):
         self.model.use_checkpointing()
@@ -206,10 +264,9 @@ class UNetLightning(pl.LightningModule):
 
         fig.legend(handles=legend, loc='center', ncol=2)
         plt.tight_layout()
-        
+
         self.logger.experiment['Segmentation Map'].log(File.as_image(fig))
         # Save the raw tensors to Neptune for debugging
         self.logger.experiment['Raw Input'].log(File.as_image(image))
         self.logger.experiment['Raw Mask'].log(File.as_image(mask))
         self.logger.experiment['Raw Prediction'].log(File.as_image(pred))
-        
