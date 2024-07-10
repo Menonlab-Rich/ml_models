@@ -17,7 +17,7 @@ from warnings import warn
 
 
 class UNetLightning(pl.LightningModule):
-    def __init__(self, n_channels, n_classes, bilinear=False,
+    def __init__(self, n_channels=1, n_classes=3, bilinear=False,
                  learning_rate=1e-5, weight_decay=1e-9, momentum=0.8,
                  amp=False):
         super(UNetLightning, self).__init__()
