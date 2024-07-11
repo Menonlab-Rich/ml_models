@@ -179,8 +179,8 @@ class UNetLightning(pl.LightningModule):
         # Select a random sample from the batch
         images, true_masks, masks_pred = outputs['img'], outputs['mask'], outputs['pred']
         idx = torch.randint(0, images.size(0), (1,)).item()
-        img, mask, pred = images[idx].unsqueeze(
-            0), true_masks[idx].unsqueeze(0), masks_pred[idx].unsqueeze(0)
+        img, mask, pred = images[idx].squeeze(
+            0), true_masks[idx].squeeze(0), masks_pred[idx].squeeze(0)
 
         # Plot the selected image
         self.plot_segmentation_map(img, mask, pred)
