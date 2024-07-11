@@ -178,7 +178,7 @@ class UNetLightning(pl.LightningModule):
             'pred': masks_pred,
         }
 
-    def on_test_epoch_end(self, *args, **kwargs):
+    def on_test_batch_end(self, *args, **kwargs):
         from random import sample
 
         # Reset the metrics after each test epoch
