@@ -4,7 +4,10 @@ data_dir: !path [*root_dir, "cropped"]
 mask_dir: !path [*root_dir, "masks"]
 target_dir: !path [*root_dir, "masks"]
 test_dir: !path [*root_dir, "tifs"]
-out_dir: !path [*root_dir, "output"]
+out_dir: &out_dir !path [*root_dir, "output"]
+ckpt_path: checkpoints/unet-UN-117-epoch=11-val_dice=0.93.ckpt
+validation_input_dir: !path [*root_dir, "combined_tifs"]
+validation_target_dir: !path [*root_dir, "combined_masks"]
 input_channels: 1 
 learning_rate: 1.e-5
 batch_size: 16

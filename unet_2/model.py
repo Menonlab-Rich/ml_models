@@ -150,6 +150,8 @@ class UNetLightning(pl.LightningModule):
         images, true_masks, _ = batch
         masks_pred = self(images)
         loss = self.calc_loss(masks_pred, true_masks)
+        self.log("imgs", len(images))
+        self.log("masks", len(masks_pred))
 
         if torch.isnan(masks_pred).any():
             warn("mask predictions have nan values")

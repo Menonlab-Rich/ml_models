@@ -15,6 +15,7 @@ def load_model(ckpt_path: str, config: Config) -> Tuple[LightningModule, Lightni
         target_loader=target_loader,
         batch_size=config.batch_size,
         transforms=config.transform,
+        test_loaders=(input_loader, target_loader),
         n_workers=4
     )
     return model, data_module
@@ -26,7 +27,7 @@ def main(config: Config):
     
     logger = NeptuneLogger(
         api_key=os.environ.get("NEPTUNE_API_TOKEN"),
-        project="richbai90/UNetTest",
+        project="richbai90/UNet2",
         tags=["testing", "unet"]
     )
     
