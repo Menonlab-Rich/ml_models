@@ -182,6 +182,9 @@ class UNetLightning(pl.LightningModule):
         images, true_masks, masks_pred = outputs['img'], outputs['mask'], outputs['pred']
         idx = torch.randint(0, images.size(0), (1,)).item()
         img, mask, pred = images[idx], true_masks[idx], masks_pred[idx]
+        
+        pred = F.softmax(pred, dim=1)
+        pred = torch.argmax(pred, dim=1)
 
         # Plot the selected image
         self.plot_segmentation_map(img, mask, pred)
