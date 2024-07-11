@@ -164,55 +164,33 @@ class UNetLightning(pl.LightningModule):
 
         # Update and log the custom accuracy
         self.val_accuracy.update(masks_pred, true_masks)
-        self.val_loss_metric.update(loss)
-        self.log(
-            'test_loss', self.val_loss_metric.compute(),
-            on_epoch=True, prog_bar=True)
-        self.log(
-            'test_dice', self.val_accuracy.compute(),
-            on_epoch=True, prog_bar=True)
 
         return {
-            'loss': loss,
-            'accuracy': self.val_accuracy,
             'img': images,
             'mask': true_masks,
             'pred': masks_pred,
+            'accuracy': self.val_accuracy
         }
 
-    def on_test_batch_end(self, *args, **kwargs):
-        from random import sample
+    def on_test_batch_end(self, outputs, batch, batch_idx):
+        # Log the incremental batch dice score
+        self.log(
+            'batch_test_dice', outputs['accuracy'].compute(),
+            prog_bar=True)
 
-        # Reset the metrics after each test epoch
-        self.val_accuracy.reset()
-        self.val_loss_metric.reset()
+        # Select a random sample from the batch
+        images, true_masks, masks_pred = outputs['img'], outputs['mask'], outputs['pred']
+        idx = torch.randint(0, images.size(0), (1,)).item()
+        img, mask, pred = images[idx].unsqueeze(
+            0), true_masks[idx].unsqueeze(0), masks_pred[idx].unsqueeze(0)
 
-        if len(self.val_outputs) == 0:
-            return  # No images to plot. Happens during dry run
+        # Plot the selected image
+        self.plot_segmentation_map(img, mask, pred)
 
-        # Separate the test outputs based on the ground truth mask values
-        mask_value_1 = [output for output in self.val_outputs
-                        if (output[1] == 1).any()]
-        mask_value_2 = [output for output in self.val_outputs
-                        if (output[1] == 2).any()]
-        self.log('test_mask_value_1_length', len(mask_value_1), on_epoch=True)
-        self.log('test_mask_value_2_length', len(mask_value_2), on_epoch=True)
-        # Select 1 random image from each category
-        selected_outputs = []
-        if mask_value_1:
-            selected_outputs.append(sample(mask_value_1, 1)[0])
-        if mask_value_2:
-            selected_outputs.append(sample(mask_value_2, 1)[0])
-
-        # Plot the selected images
-        for img, mask, pred in selected_outputs:
-            _img = img[0].unsqueeze(0)
-            _mask = mask[0].unsqueeze(0)
-            _pred = pred[0].unsqueeze(0)
-            self.plot_segmentation_map(_img, _mask, _pred)
-
-        # Reset the outputs
-        self.val_outputs = []
+    def on_test_epoch_end(self):
+        # Log the total dice score for the entire test set
+        self.log('total_test_dice', self.val_accuracy.compute(), prog_bar=True)
+        self.val_accuracy.reset()  # Reset after logging
 
     def use_checkpointing(self):
         self.model.use_checkpointing()
