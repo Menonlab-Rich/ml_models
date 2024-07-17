@@ -19,8 +19,9 @@ from warnings import warn
 class UNetLightning(pl.LightningModule):
     def __init__(self, n_channels=1, n_classes=3, bilinear=False,
                  learning_rate=1e-5, weight_decay=1e-9, momentum=0.8,
-                 amp=False):
+                 amp=False, batch_size=None):
         super(UNetLightning, self).__init__()
+        self.batch_size=batch_size
         self.model = UNet(n_channels, n_classes, bilinear)
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
@@ -45,7 +46,7 @@ class UNetLightning(pl.LightningModule):
                                   momentum=self.momentum,
                                   foreach=True)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, 'max', patience=5)
+            optimizer, 'max', patience=2)
         return {'optimizer': optimizer, 'lr_scheduler': {"scheduler": scheduler, 'monitor': 'val_dice'}}
 
     def calc_loss(self, masks_pred, masks_true):
@@ -63,7 +64,7 @@ class UNetLightning(pl.LightningModule):
         # Update and log the training loss
         self.train_loss_metric.update(loss)
         self.log('train_loss', self.train_loss_metric.compute(),
-                 on_step=True, on_epoch=True, prog_bar=True)
+                 on_step=True, on_epoch=True, prog_bar=True, batch_size=self.batch_size)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -71,7 +72,7 @@ class UNetLightning(pl.LightningModule):
         masks_pred = self(images)
         loss = self.calc_loss(masks_pred, true_masks)
         if torch.isnan(masks_pred).any():
-            warn("mas predictions have nan values")
+            warn("mask predictions have nan values")
         if torch.isnan(true_masks).any():
             warn("true masks have nan values")
         if torch.isinf(masks_pred).any():
@@ -83,10 +84,10 @@ class UNetLightning(pl.LightningModule):
         self.val_loss_metric.update(loss)
         self.log(
             'val_loss', self.val_loss_metric.compute(),
-            on_epoch=True, prog_bar=True)
+            on_epoch=True, prog_bar=True, batch_size=self.batch_size)
         self.log(
             'val_dice', self.val_accuracy.compute(),
-            on_epoch=True, prog_bar=True)
+            on_epoch=True, prog_bar=True, batch_size=self.batch_size)
         return {
             'loss': loss,
             'accuracy': self.val_accuracy,
@@ -127,8 +128,8 @@ class UNetLightning(pl.LightningModule):
                         if (output[1] == 1).any()]
         mask_value_2 = [output for output in self.val_outputs
                         if (output[1] == 2).any()]
-        self.log('mask_value_1_length', len(mask_value_1), on_epoch=True)
-        self.log('mask_value_2_length', len(mask_value_2), on_epoch=True)
+        self.log('mask_value_1_length', len(mask_value_1), on_epoch=True, batch_size=self.batch_size)
+        self.log('mask_value_2_length', len(mask_value_2), on_epoch=True, batch_size=self.batch_size)
         # Select 1 random image from each category
         selected_outputs = []
         if mask_value_1:
@@ -150,8 +151,8 @@ class UNetLightning(pl.LightningModule):
         images, true_masks, _ = batch
         masks_pred = self(images)
         loss = self.calc_loss(masks_pred, true_masks)
-        self.log("imgs", len(images))
-        self.log("masks", len(masks_pred))
+        self.log("imgs", len(images), batch_size=self.batch_size)
+        self.log("masks", len(masks_pred), batch_size=self.batch_size)
 
         if torch.isnan(masks_pred).any():
             warn("mask predictions have nan values")
@@ -183,8 +184,8 @@ class UNetLightning(pl.LightningModule):
         idx = torch.randint(0, images.size(0), (1,)).item()
         img, mask, pred = images[idx], true_masks[idx], masks_pred[idx]
         
-        pred = F.softmax(pred, dim=1)
-        pred = torch.argmax(pred, dim=1)
+        pred = F.softmax(pred, dim=0)
+        pred = torch.argmax(pred, dim=0)
 
         # Plot the selected image
         self.plot_segmentation_map(img, mask, pred)

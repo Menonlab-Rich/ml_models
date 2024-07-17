@@ -53,7 +53,7 @@ def get_train_transform():
         "input": ComposeTransforms(
                                    A.Compose([
                                        A.ToFloat(always_apply=True),
-                                       A.LongestMaxSize(512),
+                                       #A.LongestMaxSize(512),
                                        ToTensorV2(),
                                    ])),
         "target": ToTensorLong

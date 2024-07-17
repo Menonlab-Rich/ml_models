@@ -45,6 +45,7 @@ def manual_validation(input, target, model, _loss, img_name):
 
 
 def main(config: Config, debug: bool = False, manual: bool = False):
+    torch.cuda.empty_cache()
     input_loader = InputLoader(config.data_dir)
     target_loader = TargetLoader(config.mask_dir)
 
@@ -79,6 +80,7 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         n_channels=config.input_channels,
         n_classes=len(config.classes),
         learning_rate=config.learning_rate,
+        batch_size=config.batch_size,
     )
 
     trainer_args = {
@@ -88,6 +90,7 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         "accelerator": config.accelerator,
         "callbacks": [checkpoint_cb, swa],
         "gradient_clip_val": 1.0,
+        "accumulate_grad_batches": 3,
     }
 
     if debug:
