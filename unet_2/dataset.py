@@ -159,7 +159,10 @@ class TargetLoader(GenericDataLoader):
         if file.endswith('.npy'):
             return np.load(path.join(self.directory, file))
         elif file.endswith('.npz'):
-            return np.load(path.join(self.directory, file))['mask']
+            data = np.load(path.join(self.directory, file))
+            if 'mask' in data:
+                return data['mask']
+            return data['arr_0']
         else:
             raise ValueError(f'Invalid file format: {file}')
 
@@ -218,7 +221,7 @@ class UNetDataModule(LightningDataModule):
             self, input_loader: InputLoader = None,
             target_loader: TargetLoader = None, prediction_loader=None,
             test_loaders=None, transforms=None, batch_size=32, n_workers=7,
-            no_split=False):
+            split_ratio=0.8, no_split=False):
         """
         Initialize the ResnetDataModule.
 
@@ -245,9 +248,9 @@ class UNetDataModule(LightningDataModule):
             return
         if not no_split:
             self.train_inputs, self.val_inputs = self._split_data(
-                self.input_loader, 0.8)
+                self.input_loader, split_ratio)
             self.train_targets, self.val_targets = self._split_data(
-                self.target_loader, 0.8)
+                self.target_loader, split_ratio)
         else:
             self.train_inputs = self.val_inputs = self.input_loader
             self.train_targets = self.val_targets = self.target_loader

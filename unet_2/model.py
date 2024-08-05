@@ -35,6 +35,7 @@ class UNetLightning(pl.LightningModule):
         self.train_loss_metric = MeanMetric()
         self.val_loss_metric = MeanMetric()
         self.val_outputs = []
+        self.batch_count = 0;
 
     def forward(self, x):
         return self.model(x)
@@ -68,6 +69,7 @@ class UNetLightning(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        torch.cuda.empty_cache()
         images, true_masks, _ = batch
         masks_pred = self(images)
         loss = self.calc_loss(masks_pred, true_masks)
@@ -106,6 +108,9 @@ class UNetLightning(pl.LightningModule):
             self.automatic_optimization = False
 
     def on_validation_batch_end(self, outputs, *args, **kwargs) -> None:
+        self.batch_count += 1
+        if self.batch_count % 1000 != 0:
+            return # only save a few batches
         pred = F.softmax(outputs['pred'], dim=1)
         pred = torch.argmax(pred, dim=1)
         self.val_outputs.append(
@@ -128,8 +133,6 @@ class UNetLightning(pl.LightningModule):
                         if (output[1] == 1).any()]
         mask_value_2 = [output for output in self.val_outputs
                         if (output[1] == 2).any()]
-        self.log('mask_value_1_length', len(mask_value_1), on_epoch=True, batch_size=self.batch_size)
-        self.log('mask_value_2_length', len(mask_value_2), on_epoch=True, batch_size=self.batch_size)
         # Select 1 random image from each category
         selected_outputs = []
         if mask_value_1:
@@ -253,3 +256,4 @@ class UNetLightning(pl.LightningModule):
         self.logger.experiment['Raw Input'].log(File.as_image(image))
         self.logger.experiment['Raw Mask'].log(File.as_image(mask))
         self.logger.experiment['Raw Prediction'].log(File.as_image(pred))
+        plt.close()

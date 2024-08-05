@@ -54,7 +54,7 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         target_loader=target_loader,
         batch_size=1 if manual else config.batch_size,
         transforms=config.transform,
-        n_workers=1 if debug else 4
+        n_workers=8, split_ratio=0.5
     )
 
     logger = NeptuneLogger(
@@ -67,7 +67,7 @@ def main(config: Config, debug: bool = False, manual: bool = False):
 
     checkpoint_cb = ModelCheckpoint(
         monitor='val_dice',
-        dirpath='checkpoints',
+        dirpath=config.out_dir,
         filename=f'unet-{run_id}-{{epoch:02d}}-{{val_dice:.2f}}',
         save_top_k=3,
         mode='max',
@@ -90,7 +90,9 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         "accelerator": config.accelerator,
         "callbacks": [checkpoint_cb, swa],
         "gradient_clip_val": 1.0,
-        "accumulate_grad_batches": 3,
+        "accumulate_grad_batches": 5,
+        "limit_train_batches": 0.5,
+        "limit_val_batches": 0.1,
     }
 
     if debug:

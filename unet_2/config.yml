@@ -10,7 +10,7 @@ validation_input_dir: !path [*root_dir, "composite", "tifs"]
 validation_target_dir: !path [*root_dir, "composite", "masks"]
 input_channels: 1 
 learning_rate: 1.e-5
-batch_size: 40 
+batch_size: 16 
 epochs: 10
 device: cuda # Example: 'cpu' or 'cuda'
 

@@ -23,10 +23,18 @@ def path(loader, node):
 yaml.add_constructor('!path', path)
 
 
-def ToTensorLong(x: np.ndarray) -> torch.Tensor:
+def ToTensorLong(*args, **kwargs) -> torch.Tensor:
     '''
     Convert a number to a tensor of type long
     '''
+    if len(args) == 1:
+        x = args[0]
+    elif 'image' in kwargs:
+        x = kwargs['image']
+    elif 'mask' in kwargs:
+        x = kwargs['mask']
+    else:
+        raise ValueError('Invalid argument passed to ToTensorLong')
     x = np.array(x, dtype=np.uint8)
     return torch.tensor(x, dtype=torch.long)
 
@@ -35,15 +43,17 @@ class ComposeTransforms:
     def __init__(self, *transforms):
         self.transforms = transforms
 
-    def __call__(self, image, mask):
+    def __call__(self, image=None, mask=None):
         for transform in self.transforms:
             # recursively apply the transforms
             res = transform(image=image, mask=mask)
             if isinstance(res, tuple):
                 image, mask = res
-            else:
+            elif isinstance(res, dict):
                 image = res['image']
                 mask = res['mask']
+            else:
+               return res 
 
         return {'image': image, 'mask': mask}
 
@@ -53,10 +63,14 @@ def get_train_transform():
         "input": ComposeTransforms(
                                    A.Compose([
                                        A.ToFloat(always_apply=True),
+                                       A.Resize(128, 128),
                                        #A.LongestMaxSize(512),
                                        ToTensorV2(),
                                    ])),
-        "target": ToTensorLong
+        "target": ComposeTransforms(
+            A.Resize(128, 128),
+            ToTensorLong,
+        )
     }
 
 
@@ -65,9 +79,13 @@ def get_val_transform():
         "input": ComposeTransforms(SuperPixelTransform(),
                                    A.Compose([
                                        A.ToFloat(always_apply=True),
+                                       A.Resize(128, 128),
                                        ToTensorV2(),
                                    ])),
-        "target": ToTensorLong
+        "target": ComposeTransforms(
+            A.Resize(128, 128),
+            ToTensorLong,
+        )
     }
 
 
