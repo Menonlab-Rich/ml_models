@@ -54,7 +54,8 @@ def main(config: Config, debug: bool = False, manual: bool = False):
         target_loader=target_loader,
         batch_size=1 if manual else config.batch_size,
         transforms=config.transform,
-        n_workers=8, split_ratio=0.5
+        n_workers=8, split_ratio=0.5,
+        patch_size=128
     )
 
     logger = NeptuneLogger(

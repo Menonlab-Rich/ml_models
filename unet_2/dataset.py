@@ -1,4 +1,4 @@
-from base.dataset import GenericDataLoader, Transformer, GenericDataset
+from base.dataset import GenericDataLoader, GenericDataset, DynamicDataset
 from pytorch_lightning import LightningDataModule
 from PIL import Image
 import numpy as np
@@ -8,7 +8,50 @@ from glob import glob
 import pickle
 import warnings
 from torch.utils.data import DataLoader
+from numpy.lib.stride_tricks import view_as_blocks
+from typing import Iterable, Tuple
 
+
+# Example implementation of the generate function
+def patch_generator(input_image: np.ndarray, target_image: np.ndarray, patch_size: int | None) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Generate patches from the input and target images.
+
+    Parameters:
+    input_image (np.ndarray): The input image.
+    target_image (np.ndarray): The target image/mask.
+    patch_size (int): The size of the patches to generate.
+
+    Returns:
+    Iterable[Tuple[np.ndarray, np.ndarray]]: An iterable of (input_patch, target_patch) tuples.
+    """
+    if patch_size is None:
+        yield input_image, target_image
+    # Crop target to non-zero region
+    nz = np.nonzero(target_image)
+    min_row, max_row = np.min(nz[0]), np.max(nz[0])
+    min_col, max_col = np.min(nz[1]), np.max(nz[1])
+
+    # Ensure the cropped region is divisible by the patch size
+    min_row = (min_row // patch_size) * patch_size
+    max_row = ((max_row // patch_size) + 1) * patch_size
+    min_col = (min_col // patch_size) * patch_size
+    max_col = ((max_col // patch_size) + 1) * patch_size
+
+    cropped_target = target_image[min_row:max_row, min_col:max_col]
+    cropped_input = input_image[min_row:max_row, min_col:max_col]
+
+    # Split into patches
+    target_patches = view_as_blocks(cropped_target, block_shape=(patch_size, patch_size))
+    input_patches = view_as_blocks(cropped_input, block_shape=(patch_size, patch_size))
+
+    for i in range(target_patches.shape[0]):
+        for j in range(target_patches.shape[1]):
+            target_patch = target_patches[i, j].reshape(patch_size, patch_size)
+            input_patch = input_patches[i, j].reshape(patch_size, patch_size)
+            # Filter out patches with less than 1% non-zero pixels in the target
+            if np.count_nonzero(target_patch) >= 0.01 * np.prod(target_patch.shape):
+                yield input_patch, target_patch
 
 class InputLoader(GenericDataLoader):
     """
@@ -221,7 +264,7 @@ class UNetDataModule(LightningDataModule):
             self, input_loader: InputLoader = None,
             target_loader: TargetLoader = None, prediction_loader=None,
             test_loaders=None, transforms=None, batch_size=32, n_workers=7,
-            split_ratio=0.8, no_split=False):
+            split_ratio=0.8, no_split=False, patch_size=None):
         """
         Initialize the ResnetDataModule.
 
@@ -242,6 +285,7 @@ class UNetDataModule(LightningDataModule):
         self.transforms = transforms
         self.batch_size = batch_size
         self.n_workers = n_workers
+        self.patch_size = patch_size
         self.prediction_loader = prediction_loader
         if input_loader is None or target_loader is None:
             # If input_loader or target_loader is not provided, we are probably loading from a state dict
@@ -278,6 +322,13 @@ class UNetDataModule(LightningDataModule):
         elif isinstance(obj, bytes):
             return None
         return obj
+    
+    def _wrap_dataset(self, dataset):
+        '''
+        Wrap the dataset with a patch generator.
+        This way, the patch generation is done on the fly during training.
+        '''
+        return DynamicDataset(dataset, lambda x, y, *_: patch_generator(x, y, self.patch_size))
 
     def setup(self, stage: str):
         """
