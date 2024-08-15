@@ -3,9 +3,8 @@ import torch.utils.data as data
 from albumentations.pytorch import ToTensorV2
 from typing import Callable, Sequence, Any, Dict
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Iterable
 from sklearn.model_selection import KFold
-
 
 
 class GenericDataLoader():
@@ -16,10 +15,10 @@ class GenericDataLoader():
         return len(self.get_ids())
 
     def __getitem__(self, idx):
-        pass
+        raise NotImplementedError
 
     def get_ids(self, i=None):
-        pass
+        raise NotImplementedError
 
     def __iter__(self):
         for i in range(len(self)):
@@ -53,7 +52,7 @@ class GenericDataLoader():
         val_ids = np.setdiff1d(ids, train_ids)
 
         return self.post_split(train_ids, val_ids)
-    
+
     def fold(self, k=5, shuffle=True):
         """
         Split dataset IDs into k folds for cross-validation.
@@ -66,9 +65,9 @@ class GenericDataLoader():
             List[Tuple[GenericDataLoader, GenericDataLoader]]
         """
         ids = self.get_ids()
-        kf = KFold(n_splits=k, shuffle=shuffle, random_state=16) # Set seed for reproducibility
+        # Set seed for reproducibility
+        kf = KFold(n_splits=k, shuffle=shuffle, random_state=16)
         return [self.post_split(train_ids, val_ids) for train_ids, val_ids in kf.split(ids)]
-        
 
     def post_split(self, train_ids, val_ids):
         """
@@ -79,7 +78,8 @@ class GenericDataLoader():
             val_ids (np.ndarray): Array of validation IDs.
         """
         return train_ids, val_ids
-    
+
+
 class MockDataLoader(GenericDataLoader):
     def __init__(self, data):
         super().__init__()
@@ -93,11 +93,13 @@ class MockDataLoader(GenericDataLoader):
 
     def get_ids(self):
         return np.arange(len(self.data))
-    
+
     def post_split(self, train_ids, val_ids):
         if len(train_ids) == 0 or len(val_ids) == 0:
             return MockDataLoader([]), MockDataLoader([])
-        return MockDataLoader(self.data[train_ids]), MockDataLoader(self.data[val_ids])
+        return MockDataLoader(
+            self.data[train_ids]), MockDataLoader(
+            self.data[val_ids])
 
 
 class Transformer:
@@ -107,7 +109,7 @@ class Transformer:
 
     def apply_train(self, **kwargs):
         raise NotImplementedError
-    
+
     def apply_val(self, x):
         raise NotImplementedError
 
@@ -115,7 +117,10 @@ class Transformer:
 class GenericDataset(data.Dataset):
     '''
     A generic dataset class that can be used with any input and target data.
-    Supports custom transformations for input and target data.
+    Supports custom transformations for input and target data. Always returns 3 values: inputs, targets, *rest.
+    *rest is a list of additional values that are not transformed or an empty Tuple if there are no additional values.
+    The additional values are provided by the unpack method. To change the unpacking behavior, override the unpack method.
+    Please note that the unpack method must always return 3 values: inputs, targets, *rest.
     '''
 
     def __init__(
@@ -155,15 +160,47 @@ class GenericDataset(data.Dataset):
         This is because we may need to return additional values along with the inputs and targets but we don't want to transform them.
         Ensuring that the *rest values are the last values returned will allow us to identify the transformed and non-transformed values.
         '''
-        return inputs, targets
+        return inputs, targets, ()
 
     def __getitem__(self, index: int) -> Sequence[torch.Tensor]:
         inp = self.input_loader[index]
         target = self.target_loader[index]
         inp, target, *rest = self.unpack(inp, target)
-        inp, target = self.transform(inp, target)
+        inp, target = self.transform(inp, target) if self.transform else (inp, target)
 
         return inp, target, rest
+    
+class DynamicDataset():
+    def __init__(
+            self, dataset: GenericDataset,
+            generate:
+            Callable
+            [[np.ndarray, np.ndarray],
+             Iterable[Tuple[np.ndarray, np.ndarray]]]):
+        """
+        Initialize the DynamicDataLoader.
+
+        Parameters:
+        dataset (GenericDataset): The dataset to generate data from.
+        generate (Callable): Function that takes input and target arrays and returns an iterable of (input, target, *rest) tuples.
+        """
+        self.generate = generate
+        self.dataset = dataset
+        self.transform = dataset.transform
+        dataset.transform = None # Take over the transformation responsibility
+
+    def __iter__(self):
+        """
+        Iterate over the dataset and generate data using the provided generate function.
+        """
+        for input_data, target_data, *rest in self.dataset:
+            for generated_input, generated_target, *rest in self.generate(
+                    input_data, target_data, *rest):
+                if self.transform:
+                    generated_input, generated_target = self.transform(
+                        generated_input, generated_target)
+                yield generated_input, generated_target, rest
+
 
 class GenericPredictionDataset(data.Dataset):
     '''
@@ -196,4 +233,3 @@ class GenericPredictionDataset(data.Dataset):
         inp = self.transform.apply_val(inp), rest
 
         return inp
-
