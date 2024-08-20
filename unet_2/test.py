@@ -29,7 +29,7 @@ def main(config: Config):
     logger = NeptuneLogger(
         api_key=os.environ.get("NEPTUNE_API_TOKEN"),
         project="richbai90/UNet2",
-        tags=["testing", "unet", "hires", prefix]
+        tags=["testing", "unet", "hires", prefix or 'all'],
     )
     
     trainer_args = {
@@ -47,6 +47,6 @@ def main(config: Config):
     
 if __name__ == '__main__':
     cfg = Config(CONFIG_FILE_PATH)
-    for prefix in ['605', '625', 'composite']:
+    for prefix in ['605', '625', 'composite', None]:
         cfg.prefix = prefix
         main(cfg)
