@@ -6,7 +6,7 @@ from config import Config, CONFIG_FILE_PATH
 def load_model(ckpt_path: str, config: Config) -> Tuple[LightningModule, LightningDataModule]:
     from model import UNetLightning
     from dataset import UNetDataModule, InputLoader, TargetLoader
-    prefix = config.get('prefix', None)
+    prefix = config.getattr('prefix', None)
     input_loader = InputLoader(config.data_dir)
     target_loader = TargetLoader(config.mask_dir)
     model = UNetLightning.load_from_checkpoint(ckpt_path, strict=False)
