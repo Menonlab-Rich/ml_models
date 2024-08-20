@@ -307,9 +307,9 @@ class UNetDataModule(LightningDataModule):
             self.test_set = self._get_test_set()
             if self.file_prefix:
                 # Filter files based on prefix
-                self.test_set.input_loader.filter_files(
+                self.test_set.input_loader.filter_ids(
                     lambda x: x.startswith(self.file_prefix))
-                self.test_set.target_loader.filter_files(
+                self.test_set.target_loader.filter_ids(
                     lambda x: x.startswith(self.file_prefix))
 
         if stage == 'predict':

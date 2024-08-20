@@ -37,7 +37,7 @@ class UNetLightning(pl.LightningModule):
         self.val_loss_metric = MeanMetric()
         self.val_outputs = []
         self.batch_count = 0
-        self.mccm = MulticlassConfusionMatrix(num_classes=self.n_classes, ignore_index=0, normalize='true')
+        self.mccm = MulticlassConfusionMatrix(num_classes=self.n_classes, ignore_index=0, normalize='true').to(self.device)
 
     def forward(self, x):
         return self.model(x)
@@ -212,7 +212,7 @@ class UNetLightning(pl.LightningModule):
         self.mccm.update(pred_classified, target_classified)
         
     def _classify_tensors(self, tensor, patch_size=8):
-        tensor = tensor.squeeze(1).detach().cpu()
+        tensor = tensor.squeeze(1)
         B, H, W = tensor.shape  # Keep batch dimension
 
         # Divide the tensor into 8x8 patches

@@ -191,8 +191,8 @@ class Config(BaseConfigHandler):
     def __getattr__(self, name: str) -> any:
         return self.config[name]
 
-    def get(self, key):
-        return self.config[key]
+    def get(self, key, default):
+        return self.config.get(key, default)
 
     def set(self, key, value):
         self.config[key] = value
