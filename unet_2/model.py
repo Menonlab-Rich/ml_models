@@ -209,7 +209,7 @@ class UNetLightning(pl.LightningModule):
         target_classified = self._classify_tensors(target)
         
         # Update the confusion matrix
-        self.bcm.update(pred_classified, target_classified)
+        self.mccm.update(pred_classified, target_classified)
         
     def _classify_tensors(self, tensor, patch_size=8):
         tensor = tensor.squeeze(1).detach().cpu()

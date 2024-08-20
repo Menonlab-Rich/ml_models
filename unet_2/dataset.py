@@ -34,7 +34,8 @@ class InputLoader(GenericDataLoader):
             self.directory = path.dirname(directory)
         else:
             self.files = sorted(
-                [f for f in listdir(directory) if f.endswith('.tif') or f.endswith('.tiff')])
+                [f for f in listdir(directory)
+                 if f.endswith('.tif') or f.endswith('.tiff')])
         if n_files is not None:
             self.files = self.files[:n_files]
 
@@ -90,6 +91,10 @@ class InputLoader(GenericDataLoader):
         return InputLoader(
             self.directory, files=train_ids), InputLoader(
             self.directory, files=val_ids)
+
+    def filter_ids(self, x):
+        ids = [f for f in self.files if x(f)]
+        self.files = ids
 
 
 class TargetLoader(GenericDataLoader):
@@ -181,6 +186,11 @@ class TargetLoader(GenericDataLoader):
             self.directory, files=train_ids), self.__class__(
             self.directory, files=val_ids)
 
+    def filter_ids(self, x):
+        ids = [f for f in self.files if x(f)]
+        self.files = ids
+
+
 class UnetDataset(GenericDataset):
     """
     Dataset class for ResNet model.
@@ -221,7 +231,7 @@ class UNetDataModule(LightningDataModule):
             self, input_loader: InputLoader = None,
             target_loader: TargetLoader = None, prediction_loader=None,
             test_loaders=None, transforms=None, batch_size=32, n_workers=7,
-            split_ratio=0.8, no_split=False):
+            split_ratio=0.8, no_split=False, prefix=None):
         """
         Initialize the ResnetDataModule.
 
@@ -243,6 +253,7 @@ class UNetDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.n_workers = n_workers
         self.prediction_loader = prediction_loader
+        self.file_prefix = prefix
         if input_loader is None or target_loader is None:
             # If input_loader or target_loader is not provided, we are probably loading from a state dict
             return
@@ -258,8 +269,8 @@ class UNetDataModule(LightningDataModule):
         self.save_hyperparameters({
             "batch_size": batch_size, "n_workers": n_workers,
         })
-    
-    def _split_data(self, loader:GenericDataLoader, split_ratio:float):
+
+    def _split_data(self, loader: GenericDataLoader, split_ratio: float):
         """
         Split the data into training and validation sets.
 
@@ -294,15 +305,23 @@ class UNetDataModule(LightningDataModule):
 
         if stage == 'test':
             self.test_set = self._get_test_set()
+            if self.file_prefix:
+                # Filter files based on prefix
+                self.test_set.input_loader.filter_files(
+                    lambda x: x.startswith(self.file_prefix))
+                self.test_set.target_loader.filter_files(
+                    lambda x: x.startswith(self.file_prefix))
 
         if stage == 'predict':
             self.prediction_set = UnetDataset(
                 self.prediction_loader, None, self.transforms)
+
     def _get_test_set(self):
         if isinstance(self.test_loaders, str):
             if self.test_loaders.lower() == 'validation':
                 if getattr(self, 'val_inputs', None) is None:
-                    warnings.warn('Validation set not found. Trying to load from input_loader state dict.')
+                    warnings.warn(
+                        'Validation set not found. Trying to load from input_loader state dict.')
                     try:
                         self.val_inputs = self.val_set.input_loader
                         self.val_targets = self.val_set.target_loader
@@ -313,7 +332,7 @@ class UNetDataModule(LightningDataModule):
         elif self.test_loaders:
             return UnetDataset(*self.test_loaders, self.transforms)
         return None
-    
+
     def __setattr__(self, name: str, value: any) -> None:
         """
         Set an attribute of the data module.
@@ -325,7 +344,9 @@ class UNetDataModule(LightningDataModule):
 
         # Prevent overwriting existing attributes
         # Required when loading from state dict
-        if name in ('input_loader', 'target_loader', 'prediction_loader', 'test_loaders'):
+        if name in (
+            'input_loader', 'target_loader', 'prediction_loader',
+                'test_loaders'):
             if getattr(self, name, None) is not None:
                 warnings.warn(f'Refusing to set {name} as it is already set.')
                 return
@@ -339,7 +360,7 @@ class UNetDataModule(LightningDataModule):
         dict: State dictionary.
         """
         return {
-            'batch_size': self.batch_size, 
+            'batch_size': self.batch_size,
             'n_workers': self.n_workers,
             'input_loader': pickle.dumps(self.input_loader),
             'target_loader': pickle.dumps(self.target_loader),
@@ -359,8 +380,10 @@ class UNetDataModule(LightningDataModule):
             self.batch_size = state_dict['batch_size']
             self.n_workers = state_dict['n_workers']
             self.input_loader = self._load_if_bytes(state_dict['input_loader'])
-            self.target_loader = self._load_if_bytes(state_dict['target_loader'])
-            self.prediction_loader = self._load_if_bytes(state_dict['prediction_loader'])
+            self.target_loader = self._load_if_bytes(
+                state_dict['target_loader'])
+            self.prediction_loader = self._load_if_bytes(
+                state_dict['prediction_loader'])
             self.test_loaders = self._load_if_bytes(state_dict['test_loaders'])
             self.transforms = self._load_if_bytes(state_dict['transforms'])
             if (not self.input_loader or not self.target_loader) and (not self.prediction_loader and not self.test_loaders):
@@ -374,6 +397,7 @@ class UNetDataModule(LightningDataModule):
             self.input_loader, 0.8)
         self.train_targets, self.val_targets = self._split_data(
             self.target_loader, 0.8)
+
     def train_dataloader(self):
         """
         Get the DataLoader for training data.

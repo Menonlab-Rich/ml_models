@@ -78,6 +78,19 @@ class GenericDataLoader():
             val_ids (np.ndarray): Array of validation IDs.
         """
         return train_ids, val_ids
+    
+    def filter_ids(self, x: Callable[[Any], bool]):
+        """
+        Filter the ids in the dataset based on the given function.
+
+        Parameters:
+            x (Callable[[Any], bool]): A function that takes a file path and returns True if the file should be included.
+
+        Returns:
+            GenericDataLoader: A new DataLoader object containing only the files that satisfy the given condition.
+        """
+        raise NotImplementedError
+        
 
 
 class MockDataLoader(GenericDataLoader):
