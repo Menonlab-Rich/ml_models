@@ -34,7 +34,7 @@ class InputLoader(GenericDataLoader):
             self.directory = path.dirname(directory)
         else:
             self.files = sorted(
-                [f for f in listdir(directory) if f.endswith('.tif')])
+                [f for f in listdir(directory) if f.endswith('.tif') or f.endswith('.tiff')])
         if n_files is not None:
             self.files = self.files[:n_files]
 

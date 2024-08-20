@@ -63,12 +63,12 @@ def get_train_transform():
         "input": ComposeTransforms(
                                    A.Compose([
                                        A.ToFloat(always_apply=True),
-                                       A.Resize(128, 128),
+                                       #A.Resize(128, 128),
                                        #A.LongestMaxSize(512),
                                        ToTensorV2(),
                                    ])),
         "target": ComposeTransforms(
-            A.Resize(128, 128),
+            #A.Resize(128, 128),
             ToTensorLong,
         )
     }
@@ -79,11 +79,12 @@ def get_val_transform():
         "input": ComposeTransforms(SuperPixelTransform(),
                                    A.Compose([
                                        A.ToFloat(always_apply=True),
-                                       A.Resize(128, 128),
+                                       #A.Resize(128, 128),
+                                       #A.LongestMaxSize(512),
                                        ToTensorV2(),
                                    ])),
         "target": ComposeTransforms(
-            A.Resize(128, 128),
+            #A.Resize(128, 128),
             ToTensorLong,
         )
     }

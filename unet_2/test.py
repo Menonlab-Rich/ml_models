@@ -6,18 +6,18 @@ from config import Config, CONFIG_FILE_PATH
 def load_model(ckpt_path: str, config: Config) -> Tuple[LightningModule, LightningDataModule]:
     from model import UNetLightning
     from dataset import UNetDataModule, InputLoader, TargetLoader
-    input_loader = InputLoader(config.validation_input_dir)
-    target_loader = TargetLoader(config.validation_target_dir)
+    input_loader = InputLoader(config.data_dir)
+    target_loader = TargetLoader(config.mask_dir)
     model = UNetLightning.load_from_checkpoint(ckpt_path, strict=False)
-    # data_module = UNetDataModule.load_from_checkpoint(ckpt_path, test_loaders=(input_loader, target_loader), n_workers=4)
-    data_module = UNetDataModule(
-        input_loader=input_loader,
-        target_loader=target_loader,
-        batch_size=config.batch_size,
-        transforms=config.transform,
-        test_loaders=(input_loader, target_loader),
-        n_workers=4
-    )
+    data_module = UNetDataModule.load_from_checkpoint(ckpt_path, test_loaders='validation', n_workers=4)
+    #data_module = UNetDataModule(
+    #    input_loader=input_loader,
+    #    target_loader=target_loader,
+    #    batch_size=config.batch_size,
+    #    transforms=config.transform,
+    #    test_loaders=(input_loader, target_loader),
+    #    n_workers=4
+    #)
     return model, data_module
 
 def main(config: Config):
@@ -28,7 +28,7 @@ def main(config: Config):
     logger = NeptuneLogger(
         api_key=os.environ.get("NEPTUNE_API_TOKEN"),
         project="richbai90/UNet2",
-        tags=["testing", "unet"]
+        tags=["testing", "unet", "hires"]
     )
     
     trainer_args = {
