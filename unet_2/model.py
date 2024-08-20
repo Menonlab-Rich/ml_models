@@ -14,6 +14,7 @@ from base.metrics import GeneralizedDiceScore
 from torchmetrics import MeanMetric
 from neptune.types import File
 from warnings import warn
+from torchmetrics.classification import MulticlassConfusionMatrix
 
 
 class UNetLightning(pl.LightningModule):
@@ -35,7 +36,8 @@ class UNetLightning(pl.LightningModule):
         self.train_loss_metric = MeanMetric()
         self.val_loss_metric = MeanMetric()
         self.val_outputs = []
-        self.batch_count = 0;
+        self.batch_count = 0
+        self.mccm = MulticlassConfusionMatrix(num_classes=self.n_classes, ignore_index=0, normalize='true')
 
     def forward(self, x):
         return self.model(x)
@@ -153,10 +155,6 @@ class UNetLightning(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         images, true_masks, _ = batch
         masks_pred = self(images)
-        loss = self.calc_loss(masks_pred, true_masks)
-        self.log("imgs", len(images), batch_size=self.batch_size)
-        self.log("masks", len(masks_pred), batch_size=self.batch_size)
-
         if torch.isnan(masks_pred).any():
             warn("mask predictions have nan values")
         if torch.isnan(true_masks).any():
@@ -168,6 +166,7 @@ class UNetLightning(pl.LightningModule):
 
         # Update and log the custom accuracy
         self.val_accuracy.update(masks_pred, true_masks)
+        self._update_confusion_matrix(masks_pred, true_masks)
 
         return {
             'img': images,
@@ -189,17 +188,57 @@ class UNetLightning(pl.LightningModule):
         
         pred = F.softmax(pred, dim=0)
         pred = torch.argmax(pred, dim=0)
-
-        # Plot the selected image
         self.plot_segmentation_map(img, mask, pred)
 
     def on_test_epoch_end(self):
         # Log the total dice score for the entire test set
         self.log('total_test_dice', self.val_accuracy.compute(), prog_bar=True)
         self.val_accuracy.reset()  # Reset after logging
+        plt = self.mccm.plot()
+        self.logger.experiment['Confusion Matrix'].log(File.as_image(plt))
+        self.mccm.reset()
 
     def use_checkpointing(self):
         self.model.use_checkpointing()
+        
+    def _update_confusion_matrix(self, pred, target):
+        # Squeeze the tensors to remove the channel dimension
+        pred = F.softmax(pred, dim=1)
+        pred = torch.argmax(pred, dim=1)
+        pred_classified = self._classify_tensors(pred)
+        target_classified = self._classify_tensors(target)
+        
+        # Update the confusion matrix
+        self.bcm.update(pred_classified, target_classified)
+        
+    def _classify_tensors(self, tensor, patch_size=8):
+        tensor = tensor.squeeze(1).detach().cpu()
+        B, H, W = tensor.shape  # Keep batch dimension
+
+        # Divide the tensor into 8x8 patches
+        patches = tensor.unfold(1, patch_size, patch_size).unfold(2, patch_size, patch_size)
+
+        # Flatten the patches to create a list of 8x8 patches
+        patches = patches.contiguous().view(B, -1, patch_size, patch_size)
+
+        # Initialize the classified patches tensor
+        classified_patches = torch.zeros(B, patches.shape[1], dtype=torch.int64)
+
+        # Classify each patch
+        for i in range(patches.shape[1]):
+            patch = patches[:, i, :, :]
+            count_1 = (patch == 1).sum(dim=[1, 2])
+            count_2 = (patch == 2).sum(dim=[1, 2])
+
+            # Determine classification based on the count
+            classified_patches[:, i] = torch.where(count_1 > count_2, 1,
+                                                torch.where(count_2 > count_1, 2, 0))
+
+        # Flatten the classified patches to be compatible with MulticlassConfusionMatrix
+        classified_patches = classified_patches.view(-1)
+
+        return classified_patches
+        
 
     def _mask_to_rgb(self, mask):
         """

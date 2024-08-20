@@ -60,7 +60,7 @@ def main(config: Config, debug: bool = False, manual: bool = False):
     logger = NeptuneLogger(
         api_key=os.environ.get("NEPTUNE_API_TOKEN"),
         project="richbai90/unet2",
-        tags=["training", "segmentation", "unet"]
+        tags=["training", "segmentation", "unet", "32x32"]
     )
 
     run_id = logger.experiment["sys/id"].fetch()

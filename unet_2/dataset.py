@@ -1,7 +1,6 @@
 from base.dataset import GenericDataLoader, Transformer, GenericDataset
 from pytorch_lightning import LightningDataModule
-import torch
-import tifffile as tiff
+from PIL import Image
 import numpy as np
 import os
 from os import path, listdir
@@ -9,9 +8,6 @@ from glob import glob
 import pickle
 import warnings
 from torch.utils.data import DataLoader
-from itertools import islice
-from functools import cache
-from types import GeneratorType
 
 
 class InputLoader(GenericDataLoader):
@@ -19,208 +15,171 @@ class InputLoader(GenericDataLoader):
     Loader for input files (images) to be used as input to the model.
     """
 
-    def __init__(self, directory, n_files=None, files=None, patch_size=None, step_size=None):
+    def __init__(self, directory, n_files=None, files=None):
+        """
+        Initialize the InputLoader.
+
+        Parameters:
+        directory (str): Directory containing the input files.
+        n_files (int): Number of files to sample (default: None).
+        files (List[str]): List of files to use (optional).
+        """
+
         self.directory = directory
-        self.patch_size = patch_size
-        self.step_size = step_size
         if files is not None:
             self.files = files
         elif not path.isdir(directory):
+            # Handle glob pattern
             self.files = sorted(glob(directory))
             self.directory = path.dirname(directory)
         else:
-            self.files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+            self.files = sorted(
+                [f for f in listdir(directory) if f.endswith('.tif') or f.endswith('.tiff')])
         if n_files is not None:
             self.files = self.files[:n_files]
 
-        first_image = tiff.memmap(path.join(self.directory, self.files[0]))
-        self.img_height, self.img_width = first_image.shape[:2]
-
-    @property
-    @cache
-    def _patches_per_image(self):
-        return ((self.img_height - self.patch_size) // self.step_size + 1) * \
-               ((self.img_width - self.patch_size) // self.step_size + 1) \
-                   if self.patch_size and self.step_size else 1
-
-    @property
-    def _y_steps(self):
-        return range(0, self.img_height - self.patch_size + 1, self.step_size) \
-            if self.patch_size and self.step_size else [0]
-
-    @property
-    def _x_steps(self):
-        return range(0, self.img_width - self.patch_size + 1, self.step_size) \
-            if self.patch_size and self.step_size else [0]
-
-    @property
-    @cache
-    def _y_remainder(self):
-        return (self.img_height - self.patch_size) % self.step_size \
-            if self.patch_size and self.step_size else 0
-
-    @property
-    @cache
-    def _x_remainder(self):
-        return (self.img_width - self.patch_size) % self.step_size \
-            if self.patch_size and self.step_size else 0
-
-    @cache
     def __len__(self):
-        return len(self.files) * self._patches_per_image
+        return len(self.files)
 
     def __getitem__(self, idx):
-        file_idx = idx // self._patches_per_image
-        patch_idx = idx % self._patches_per_image
-        return self._read(self.files[file_idx], patch_idx)
+        return self._read(self.files[idx])
 
     def __iter__(self):
         for file in self.files:
             yield self._read(file)
 
-    def get_ids(self, i=None, **_):
-        file_idx = i // self._patches_per_image
-        patch_idx = i % self._patches_per_image
-        return f'{self.files[file_idx]}_{patch_idx}'
+    def get_ids(self, i=None, batch_size=1):
+        """
+        Get the file names for the given index and batch size.
 
-    def _generate_patches(self, img):
-        if not self.patch_size or not self.step_size:
-            yield img
-            return
+        Parameters:
+        i (int): Index (default: None).
+        batch_size (int): Batch size (default: 1).
 
-        for y in self._y_steps:
-            for x in self._x_steps:
-                yield img[y:y+self.patch_size, x:x+self.patch_size]
-        if self._y_remainder:
-            for x in range(0, img.shape[1] - self.patch_size + 1, self.step_size):
-                yield img[-self.patch_size:, x:x+self.patch_size]
-        if self._x_remainder:
-            for y in range(0, img.shape[0] - self.patch_size + 1, self.step_size):
-                yield img[y:y+self.patch_size, -self.patch_size:]
-        if self._y_remainder and self._x_remainder:
-            yield img[-self.patch_size:, -self.patch_size:]
+        Returns:
+        List[str]: List of file names.
+        """
+        if i is not None:
+            return self.files[i:i+batch_size]
+        return self.files
 
-    def _read(self, file, patch_idx=None):
-        img = tiff.memmap(path.join(self.directory, path.basename(file)))
-        if self.patch_size and self.step_size:
-            generator = self._generate_patches(img)
-            if patch_idx is not None:
-                return next(islice(generator, patch_idx, None))
-            return generator
-        return img, file
+    def _read(self, file):
+        """
+        Read the file and return it as a numpy array.
+
+        Parameters:
+        file (str): File name.
+
+        Returns:
+        np.ndarray: Numpy array of the image.
+        """
+        file = path.basename(file)
+        return np.array(Image.open(path.join(self.directory, file))), file
 
     def post_split(self, train_ids, val_ids):
-        return InputLoader(self.directory, files=train_ids), InputLoader(self.directory, files=val_ids)
+        """
+        Split the loader into training and validation sets.
 
-    def collate_fn(self, batch):
-        patches, filenames = zip(*batch)
-        patches = [torch.from_numpy(patch) if not torch.is_tensor(patch) else patch for patch in patches]
-        return torch.stack(patches), filenames
+        Parameters:
+        train_ids (List[str]): List of training file names.
+        val_ids (List[str]): List of validation file names.
+
+        Returns:
+        Tuple[InputLoader, InputLoader]: Training and validation loaders.
+        """
+        return InputLoader(
+            self.directory, files=train_ids), InputLoader(
+            self.directory, files=val_ids)
 
 
 class TargetLoader(GenericDataLoader):
     """
-    Loader for target files (masks) to be used as input to the model.
+    Loader for target files (class labels) corresponding to the input files.
     """
 
-    def __init__(self, directory, n_files=None, files=None, patch_size=None, step_size=None):
+    def __init__(self, directory, n_files=None, files=None):
+        """
+        Initialize the TargetLoader.
+
+        Parameters:
+        directory (str): Directory containing the target files.
+        n_files (int): Number of files to sample (default: None).
+        files (List[str]): List of files to use (optional).
+        """
         self.directory = directory
-        self.patch_size = patch_size
-        self.step_size = step_size
         if files is not None:
             self.files = files
         elif not path.isdir(directory):
+            # Handle glob pattern
             self.files = sorted(glob(directory))
             self.directory = path.dirname(directory)
         else:
-            self.files = sorted([f for f in listdir(directory) if f.endswith('.tif')])
+            self.files = sorted(
+                [f for f in listdir(directory)
+                 if f.endswith('.npy') or f.endswith('.npz')])
         if n_files is not None:
             self.files = self.files[:n_files]
 
-        first_image = tiff.memmap(path.join(self.directory, self.files[0]))
-        self.img_height, self.img_width = first_image.shape[:2]
-
-    @property
-    @cache
-    def _patches_per_image(self):
-        return ((self.img_height - self.patch_size) // self.step_size + 1) * \
-               ((self.img_width - self.patch_size) // self.step_size + 1) \
-                   if self.patch_size and self.step_size else 1
-
-    @property
-    def _y_steps(self):
-        return range(0, self.img_height - self.patch_size + 1, self.step_size) \
-            if self.patch_size and self.step_size else [0]
-
-    @property
-    def _x_steps(self):
-        return range(0, self.img_width - self.patch_size + 1, self.step_size) \
-            if self.patch_size and self.step_size else [0]
-
-    @property
-    @cache
-    def _y_remainder(self):
-        return (self.img_height - self.patch_size) % self.step_size \
-            if self.patch_size and self.step_size else 0
-
-    @property
-    @cache
-    def _x_remainder(self):
-        return (self.img_width - self.patch_size) % self.step_size \
-            if self.patch_size and self.step_size else 0
-
-    @cache
     def __len__(self):
-        return len(self.files) * self._patches_per_image
+        return len(self.files)
 
     def __getitem__(self, idx):
-        file_idx = idx // self._patches_per_image
-        patch_idx = idx % self._patches_per_image
-        return self._read(self.files[file_idx], patch_idx)
+        return self._read(self.files[idx])
 
     def __iter__(self):
         for file in self.files:
             yield self._read(file)
 
-    def get_ids(self, i=None, **_):
-        file_idx = i // self._patches_per_image
-        patch_idx = i % self._patches_per_image
-        return f'{self.files[file_idx]}_{patch_idx}'
+    def get_ids(self, i=None, batch_size=1):
+        """
+        Get the file names for the given index and batch size.
 
-    def _generate_patches(self, img):
-        if not self.patch_size or not self.step_size:
-            yield img
-            return
+        Parameters:
+        i (int): Index (default: None).
+        batch_size (int): Batch size (default: 1).
 
-        for y in self._y_steps:
-            for x in self._x_steps:
-                yield img[y:y+self.patch_size, x:x+self.patch_size]
-        if self._y_remainder:
-            for x in range(0, img.shape[1] - self.patch_size + 1, self.step_size):
-                yield img[-self.patch_size:, x:x+self.patch_size]
-        if self._x_remainder:
-            for y in range(0, img.shape[0] - self.patch_size + 1, self.step_size):
-                yield img[y:y+self.patch_size, -self.patch_size:]
-        if self._y_remainder and self._x_remainder:
-            yield img[-self.patch_size:, -self.patch_size:]
+        Returns:
+        List[str]: List of file names.
+        """
+        if i is not None:
+            return self.files[i:i+batch_size - 1]
+        return self.files
 
-    def _read(self, file, patch_idx=None):
-        img = np.load(path.join(self.directory, path.basename(file)))['mask'] # Load the mask from the .npz file
-        if self.patch_size and self.step_size:
-            generator = self._generate_patches(img)
-            if patch_idx is not None:
-                return next(islice(generator, patch_idx, None))
-            return generator
-        return img, file
+    def _read(self, file: str) -> int:
+        """
+        Read the class of the file based on the first three characters of the file name.
+
+        Parameters:
+        file (str): File name.
+
+        Returns:
+        int: Class index.
+        """
+        file = path.basename(file)
+        if file.endswith('.npy'):
+            return np.load(path.join(self.directory, file))
+        elif file.endswith('.npz'):
+            data = np.load(path.join(self.directory, file))
+            if 'mask' in data:
+                return data['mask']
+            return data['arr_0']
+        else:
+            raise ValueError(f'Invalid file format: {file}')
 
     def post_split(self, train_ids, val_ids):
-        return InputLoader(self.directory, files=train_ids), InputLoader(self.directory, files=val_ids)
+        """
+        Split the loader into training and validation sets.
 
-    def collate_fn(self, batch):
-        patches, filenames = zip(*batch)
-        patches = [torch.from_numpy(patch) if not torch.is_tensor(patch) else patch for patch in patches]
-        return torch.stack(patches), filenames
+        Parameters:
+        train_ids (List[str]): List of training file names.
+        val_ids (List[str]): List of validation file names.
 
+        Returns:
+        Tuple[TargetLoader, TargetLoader]: Training and validation loaders.
+        """
+        return self.__class__(
+            self.directory, files=train_ids), self.__class__(
+            self.directory, files=val_ids)
 
 class UnetDataset(GenericDataset):
     """
@@ -240,20 +199,18 @@ class UnetDataset(GenericDataset):
             input_loader, target_loader, transform)
 
     def unpack(self, inputs, targets):
+        """
+        Unpack the data into input and target.
+
+        Parameters:
+        data (Tuple[np.ndarray, int]): Tuple containing input and target.
+
+        Returns:
+        Tuple[np.ndarray, int]: Unpacked input and target.
+        """
         inputs, filenames = inputs
-        # If the input is a generator, convert it to a list
-        if isinstance(inputs, GeneratorType):
-            inputs = list(inputs)
         return inputs, targets, filenames
-    
-    def collate_fn(self, batch):
-        inputs, targets, filenames = zip(*batch)
-        
-        # Collate the inputs and targets
-        inputs = self.input_loader.collate_fn(inputs)
-        targets = self.target_loader.collate_fn(targets)
-        
-        return inputs, targets, filenames
+
 
 class UNetDataModule(LightningDataModule):
     """
@@ -301,8 +258,8 @@ class UNetDataModule(LightningDataModule):
         self.save_hyperparameters({
             "batch_size": batch_size, "n_workers": n_workers,
         })
-
-    def _split_data(self, loader: GenericDataLoader, split_ratio: float):
+    
+    def _split_data(self, loader:GenericDataLoader, split_ratio:float):
         """
         Split the data into training and validation sets.
 
@@ -341,13 +298,11 @@ class UNetDataModule(LightningDataModule):
         if stage == 'predict':
             self.prediction_set = UnetDataset(
                 self.prediction_loader, None, self.transforms)
-
     def _get_test_set(self):
         if isinstance(self.test_loaders, str):
             if self.test_loaders.lower() == 'validation':
                 if getattr(self, 'val_inputs', None) is None:
-                    warnings.warn(
-                        'Validation set not found. Trying to load from input_loader state dict.')
+                    warnings.warn('Validation set not found. Trying to load from input_loader state dict.')
                     try:
                         self.val_inputs = self.val_set.input_loader
                         self.val_targets = self.val_set.target_loader
@@ -358,7 +313,7 @@ class UNetDataModule(LightningDataModule):
         elif self.test_loaders:
             return UnetDataset(*self.test_loaders, self.transforms)
         return None
-
+    
     def __setattr__(self, name: str, value: any) -> None:
         """
         Set an attribute of the data module.
@@ -370,9 +325,7 @@ class UNetDataModule(LightningDataModule):
 
         # Prevent overwriting existing attributes
         # Required when loading from state dict
-        if name in (
-            'input_loader', 'target_loader', 'prediction_loader',
-                'test_loaders'):
+        if name in ('input_loader', 'target_loader', 'prediction_loader', 'test_loaders'):
             if getattr(self, name, None) is not None:
                 warnings.warn(f'Refusing to set {name} as it is already set.')
                 return
@@ -386,7 +339,7 @@ class UNetDataModule(LightningDataModule):
         dict: State dictionary.
         """
         return {
-            'batch_size': self.batch_size,
+            'batch_size': self.batch_size, 
             'n_workers': self.n_workers,
             'input_loader': pickle.dumps(self.input_loader),
             'target_loader': pickle.dumps(self.target_loader),
@@ -406,10 +359,8 @@ class UNetDataModule(LightningDataModule):
             self.batch_size = state_dict['batch_size']
             self.n_workers = state_dict['n_workers']
             self.input_loader = self._load_if_bytes(state_dict['input_loader'])
-            self.target_loader = self._load_if_bytes(
-                state_dict['target_loader'])
-            self.prediction_loader = self._load_if_bytes(
-                state_dict['prediction_loader'])
+            self.target_loader = self._load_if_bytes(state_dict['target_loader'])
+            self.prediction_loader = self._load_if_bytes(state_dict['prediction_loader'])
             self.test_loaders = self._load_if_bytes(state_dict['test_loaders'])
             self.transforms = self._load_if_bytes(state_dict['transforms'])
             if (not self.input_loader or not self.target_loader) and (not self.prediction_loader and not self.test_loaders):
@@ -423,7 +374,6 @@ class UNetDataModule(LightningDataModule):
             self.input_loader, 0.8)
         self.train_targets, self.val_targets = self._split_data(
             self.target_loader, 0.8)
-
     def train_dataloader(self):
         """
         Get the DataLoader for training data.
